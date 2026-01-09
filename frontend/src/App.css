@@ -219,6 +219,31 @@
   color: #3c3b37;
 }
 
+.log {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-height: 260px;
+  overflow: auto;
+  background: #fffdf9;
+  border-radius: 14px;
+  padding: 0.75rem;
+  border: 1px solid #f1e1d0;
+}
+
+.log-entry {
+  display: grid;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+}
+
+.log-entry pre {
+  margin: 0;
+  white-space: pre-wrap;
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: #3a3a3a;
+}
+
 .toast {
   position: sticky;
   top: 1rem;

@@ -83,6 +83,27 @@ def _get_or_create_demo_user():
     return user
 
 
+def _get_or_create_project(user, room_type, title):
+    project, _ = Project.objects.get_or_create(
+        user=user,
+        room_type=room_type,
+        title=title,
+    )
+    return project
+
+
+def _get_or_create_feedback(user, project, version, event_type, payload_json):
+    event, _ = FeedbackEvent.objects.get_or_create(
+        user=user,
+        project=project,
+        design_version=version,
+        event_type=event_type,
+        payload_json=payload_json,
+    )
+    process_feedback_event(event)
+    return event
+
+
 @api_view(['POST'])
 def demo_seed(request):
     user = _get_or_create_demo_user()
@@ -126,6 +147,97 @@ def demo_seed(request):
             'version_id': version.id,
         },
         status=status.HTTP_201_CREATED,
+    )
+
+
+@api_view(['POST'])
+def demo_create_user(request):
+    user = _get_or_create_demo_user()
+    return Response({'user_id': user.id, 'name': user.username})
+
+
+@api_view(['POST'])
+def demo_seed_projects(request):
+    user_id = request.data.get('user_id')
+    if not user_id:
+        return Response({'detail': 'user_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+    user = get_user_model().objects.filter(id=user_id).first()
+    if not user:
+        return Response({'detail': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    projects = [
+        _get_or_create_project(user, 'bedroom', 'Cozy Bedroom'),
+        _get_or_create_project(user, 'living_room', 'Bright Living Room'),
+        _get_or_create_project(user, 'office', 'Simple Office'),
+    ]
+    return Response(
+        {
+            'projects': [
+                {'id': project.id, 'room_type': project.room_type, 'title': project.title}
+                for project in projects
+            ]
+        }
+    )
+
+
+@api_view(['POST'])
+def demo_seed_story(request):
+    user_id = request.data.get('user_id')
+    if not user_id:
+        return Response({'detail': 'user_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+    user = get_user_model().objects.filter(id=user_id).first()
+    if not user:
+        return Response({'detail': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    bedroom = _get_or_create_project(user, 'bedroom', 'Cozy Bedroom')
+    living_room = _get_or_create_project(user, 'living_room', 'Bright Living Room')
+
+    version = DesignVersion.objects.filter(project=bedroom, version_number=1).first()
+    if not version:
+        version = DesignVersion.objects.create(project=bedroom, notes='Initial concept')
+
+    existing_images = GeneratedImage.objects.filter(design_version=version)
+    for index in range(existing_images.count() + 1, 6):
+        GeneratedImage.objects.create(
+            design_version=version,
+            prompt=f'Demo image prompt {index}',
+            params_json={'seed': index},
+            image_url=f'https://picsum.photos/seed/{version.id}-{index}/600/400',
+        )
+
+    _get_or_create_feedback(
+        user,
+        bedroom,
+        version,
+        'select',
+        {'selected_option_index': 3},
+    )
+    _get_or_create_feedback(
+        user,
+        bedroom,
+        version,
+        'modify',
+        {'text': 'make warmer'},
+    )
+    _get_or_create_feedback(
+        user,
+        bedroom,
+        version,
+        'save',
+        {'note': 'final'},
+    )
+
+    preference_keys = list(
+        Preference.objects.filter(user=user).values_list('key', flat=True)
+    )
+
+    return Response(
+        {
+            'bedroom_id': bedroom.id,
+            'living_room_id': living_room.id,
+            'version_id': version.id,
+            'preference_keys': preference_keys,
+        }
     )
 
 
@@ -184,6 +296,21 @@ def demo_run_step(request):
         return Response({'step': 4, 'project_id': office.id, 'version_id': version.id})
 
     return Response({'detail': 'Invalid step'}, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['POST'])
+def demo_reset(request):
+    user = get_user_model().objects.filter(username='sunny').first()
+    if not user:
+        return Response({'detail': 'No demo user found'}, status=status.HTTP_404_NOT_FOUND)
+    Preference.objects.filter(user=user).delete()
+    FeedbackEvent.objects.filter(user=user).delete()
+    GeneratedImage.objects.filter(design_version__project__user=user).delete()
+    DesignVersion.objects.filter(project__user=user).delete()
+    Project.objects.filter(user=user).delete()
+    UserProfile.objects.filter(user=user).delete()
+    user.delete()
+    return Response({'detail': 'Demo data removed'})
 
 
 class UserProfileViewSet(viewsets.ModelViewSet):
