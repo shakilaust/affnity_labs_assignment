@@ -19,6 +19,43 @@
   animation: rise 0.6s ease-out;
 }
 
+.landing {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 4rem 1.5rem 6rem;
+}
+
+.landing-hero {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 2rem;
+  align-items: center;
+  padding: 3rem;
+  border-radius: 32px;
+  background: linear-gradient(140deg, rgba(252, 235, 217, 0.95), rgba(212, 231, 243, 0.9));
+  box-shadow: 0 24px 60px rgba(24, 28, 35, 0.12);
+}
+
+.landing-card {
+  background: #fff7ed;
+  border-radius: 20px;
+  padding: 1.75rem;
+  border: 1px solid rgba(214, 180, 146, 0.4);
+}
+
+.landing-card ul {
+  padding-left: 1.2rem;
+  margin: 0;
+  color: #3d3b36;
+}
+
+.cta-row {
+  display: flex;
+  gap: 1rem;
+  margin-top: 1.5rem;
+  flex-wrap: wrap;
+}
+
 .eyebrow {
   text-transform: uppercase;
   letter-spacing: 0.22em;
@@ -288,6 +325,47 @@ button.ghost {
   background: transparent;
   color: #2f2f2f;
   border: 1px solid #2f2f2f;
+}
+
+.button {
+  border-radius: 999px;
+  padding: 0.65rem 1.4rem;
+  border: none;
+  background: #2f2f2f;
+  color: #fff;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 20px rgba(20, 20, 20, 0.2);
+}
+
+.button.ghost {
+  background: transparent;
+  color: #2f2f2f;
+  border: 1px solid #2f2f2f;
+}
+
+.auth-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 2rem 1.5rem;
+}
+
+.auth-card {
+  width: min(420px, 100%);
+  background: #fff;
+  border-radius: 24px;
+  padding: 2rem;
+  box-shadow: 0 20px 45px rgba(20, 22, 26, 0.12);
+  display: grid;
+  gap: 1rem;
 }
 
 @keyframes rise {
