@@ -10,6 +10,7 @@ from .models import (
     ProjectLink,
     UserProfile,
 )
+from .learning import process_feedback_event
 from .serializers import (
     DesignVersionSerializer,
     FeedbackEventSerializer,
@@ -75,6 +76,10 @@ class DesignVersionViewSet(viewsets.ReadOnlyModelViewSet):
 class FeedbackEventViewSet(viewsets.ModelViewSet):
     queryset = FeedbackEvent.objects.select_related('user', 'project', 'design_version').all()
     serializer_class = FeedbackEventSerializer
+
+    def perform_create(self, serializer):
+        instance = serializer.save()
+        process_feedback_event(instance)
 
 
 class PreferenceViewSet(viewsets.ModelViewSet):
