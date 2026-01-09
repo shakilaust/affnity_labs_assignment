@@ -370,6 +370,13 @@ class FeedbackEventViewSet(viewsets.ModelViewSet):
     queryset = FeedbackEvent.objects.select_related('user', 'project', 'design_version').all()
     serializer_class = FeedbackEventSerializer
 
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        project_id = self.request.query_params.get('project_id')
+        if project_id:
+            queryset = queryset.filter(project_id=project_id)
+        return queryset.order_by('-created_at')
+
     def perform_create(self, serializer):
         instance = serializer.save()
         process_feedback_event(instance)
