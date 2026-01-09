@@ -8,6 +8,8 @@ from .views import (
     ProjectLinkViewSet,
     ProjectViewSet,
     UserProfileViewSet,
+    demo_run_step,
+    demo_seed,
     health,
     resolve_context_view,
 )
@@ -22,6 +24,8 @@ router.register(r'preferences', PreferenceViewSet, basename='preferences')
 urlpatterns = [
     path('health', health, name='health'),
     path('context/resolve', resolve_context_view, name='context-resolve'),
+    path('demo/seed', demo_seed, name='demo-seed'),
+    path('demo/run_step', demo_run_step, name='demo-run-step'),
     path('', include(router.urls)),
     path(
         'projects/link/',
