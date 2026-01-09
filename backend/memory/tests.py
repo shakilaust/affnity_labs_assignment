@@ -1,8 +1,11 @@
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 
+from django.utils import timezone
+
 from .learning import process_feedback_event
 from .models import DesignVersion, FeedbackEvent, Preference, Project
+from .retrieval import resolve_context
 
 
 User = get_user_model()
@@ -54,3 +57,35 @@ class PreferenceLearningTests(TestCase):
         process_feedback_event(event)
         pref = Preference.objects.get(user=self.user, key='favorite_option_index')
         self.assertEqual(pref.value, '3')
+
+
+class ContextRetrievalTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create(username='planner')
+        self.bedroom = Project.objects.create(
+            user=self.user,
+            room_type='bedroom',
+            title='Calm Bedroom',
+        )
+        self.living_room = Project.objects.create(
+            user=self.user,
+            room_type='living_room',
+            title='Bright Living Room',
+        )
+        self.version = DesignVersion.objects.create(project=self.bedroom)
+        FeedbackEvent.objects.create(
+            user=self.user,
+            project=self.bedroom,
+            design_version=self.version,
+            event_type='save',
+            payload_json={'note': 'saved'},
+        )
+        Project.objects.filter(id=self.bedroom.id).update(updated_at=timezone.now())
+
+    def test_cross_room_reference_prefers_bedroom(self):
+        payload = resolve_context(
+            user_id=self.user.id,
+            message='living room same vibe as bedroom',
+        )
+        self.assertIsNotNone(payload['reference_project'])
+        self.assertEqual(payload['reference_project']['id'], self.bedroom.id)

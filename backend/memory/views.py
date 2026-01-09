@@ -11,6 +11,7 @@ from .models import (
     UserProfile,
 )
 from .learning import process_feedback_event
+from .retrieval import resolve_context
 from .serializers import (
     DesignVersionSerializer,
     FeedbackEventSerializer,
@@ -25,6 +26,16 @@ from .serializers import (
 @api_view(['GET'])
 def health(request):
     return Response({'status': 'ok'})
+
+
+@api_view(['POST'])
+def resolve_context_view(request):
+    user_id = request.data.get('user_id')
+    message = request.data.get('message', '')
+    if not user_id:
+        return Response({'detail': 'user_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+    payload = resolve_context(user_id=user_id, message=message)
+    return Response(payload)
 
 
 class UserProfileViewSet(viewsets.ModelViewSet):
