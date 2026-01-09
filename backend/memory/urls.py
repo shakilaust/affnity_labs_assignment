@@ -9,6 +9,7 @@ from .views import (
     ProjectViewSet,
     UserProfileViewSet,
     health,
+    resolve_context_view,
 )
 
 router = DefaultRouter()
@@ -20,6 +21,7 @@ router.register(r'preferences', PreferenceViewSet, basename='preferences')
 
 urlpatterns = [
     path('health', health, name='health'),
+    path('context/resolve', resolve_context_view, name='context-resolve'),
     path('', include(router.urls)),
     path(
         'projects/link/',
