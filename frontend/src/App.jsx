@@ -49,6 +49,8 @@ function App() {
   const [assistantResult, setAssistantResult] = useState(null)
   const [assistantStatus, setAssistantStatus] = useState('')
   const [actionError, setActionError] = useState('')
+  const [demoProjects, setDemoProjects] = useState([])
+  const [demoLog, setDemoLog] = useState([])
 
   const selectedProject = useMemo(
     () => projects.find((project) => `${project.id}` === `${selectedProjectId}`),
@@ -68,6 +70,10 @@ function App() {
           setHealth({ status: 'error', error: err.message })
         }
       })
+    const savedUserId = window.localStorage.getItem('demo_user_id')
+    if (savedUserId) {
+      setUserId(savedUserId)
+    }
     return () => {
       isMounted = false
     }
@@ -76,6 +82,18 @@ function App() {
   const handleError = (err) => {
     setActionError(err.message || 'Something went wrong')
     setTimeout(() => setActionError(''), 4000)
+  }
+
+  const pushLog = (label, payload) => {
+    const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`
+    setDemoLog((prev) => [
+      {
+        id,
+        label,
+        payload,
+      },
+      ...prev,
+    ])
   }
 
   const loadUsers = async () => {
@@ -98,6 +116,68 @@ function App() {
       setUsers((prev) => [data, ...prev])
       setUserId(`${data.user}`)
       setUserForm(initialUserForm)
+    } catch (err) {
+      handleError(err)
+    }
+  }
+
+  const createDemoUser = async () => {
+    try {
+      const data = await fetchJson(`${API_BASE}/demo/create-user`, {
+        method: 'POST',
+        headers: jsonHeaders,
+      })
+      setUserId(`${data.user_id}`)
+      window.localStorage.setItem('demo_user_id', `${data.user_id}`)
+      pushLog('Create demo user', data)
+    } catch (err) {
+      handleError(err)
+    }
+  }
+
+  const seedDemoProjects = async () => {
+    if (!userId) {
+      handleError(new Error('Set a user id first'))
+      return
+    }
+    try {
+      const data = await fetchJson(`${API_BASE}/demo/seed-projects`, {
+        method: 'POST',
+        headers: jsonHeaders,
+        body: JSON.stringify({ user_id: Number(userId) }),
+      })
+      setDemoProjects(data.projects || [])
+      pushLog('Seed demo projects', data)
+    } catch (err) {
+      handleError(err)
+    }
+  }
+
+  const seedDemoStory = async () => {
+    if (!userId) {
+      handleError(new Error('Set a user id first'))
+      return
+    }
+    try {
+      const data = await fetchJson(`${API_BASE}/demo/seed-story`, {
+        method: 'POST',
+        headers: jsonHeaders,
+        body: JSON.stringify({ user_id: Number(userId) }),
+      })
+      pushLog('Seed full story', data)
+    } catch (err) {
+      handleError(err)
+    }
+  }
+
+  const resetDemo = async () => {
+    try {
+      const data = await fetchJson(`${API_BASE}/demo/reset`, {
+        method: 'POST',
+        headers: jsonHeaders,
+      })
+      setDemoProjects([])
+      pushLog('Reset demo', data)
     } catch (err) {
       handleError(err)
     }
@@ -326,6 +406,58 @@ function App() {
       </header>
 
       {actionError && <div className="toast">{actionError}</div>}
+
+      <section className="panel">
+        <div className="panel-header">
+          <h2>Demo setup</h2>
+          <span className="muted">Active user id: {userId || 'Not set'}</span>
+        </div>
+        <div className="field-row">
+          <button onClick={createDemoUser} type="button">
+            Create Demo User
+          </button>
+          <button className="ghost" onClick={seedDemoProjects} type="button">
+            Seed Demo Projects
+          </button>
+          <button className="ghost" onClick={seedDemoStory} type="button">
+            Seed Full Story
+          </button>
+          <button className="ghost" onClick={resetDemo} type="button">
+            Reset Demo Data
+          </button>
+        </div>
+        <div className="grid-two">
+          <div className="card">
+            <h3>Seeded projects</h3>
+            <div className="list">
+              {demoProjects.map((project) => (
+                <button
+                  key={project.id}
+                  className="list-item"
+                  type="button"
+                  onClick={() => setSelectedProjectId(`${project.id}`)}
+                >
+                  <strong>{project.title}</strong>
+                  <span>{project.room_type} · ID {project.id}</span>
+                </button>
+              ))}
+              {!demoProjects.length && <p className="muted">No demo projects yet.</p>}
+            </div>
+          </div>
+          <div className="card">
+            <h3>Demo log</h3>
+            <div className="log">
+              {demoLog.map((entry) => (
+                <div key={entry.id} className="log-entry">
+                  <strong>{entry.label}</strong>
+                  <pre>{JSON.stringify(entry.payload, null, 2)}</pre>
+                </div>
+              ))}
+              {!demoLog.length && <p className="muted">No demo actions yet.</p>}
+            </div>
+          </div>
+        </div>
+      </section>
 
       <section className="panel">
         <div className="panel-header">
