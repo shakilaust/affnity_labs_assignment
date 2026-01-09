@@ -1,0 +1,35 @@
+#root {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 3rem 1.5rem;
+  text-align: left;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.subtitle {
+  color: #5c6570;
+  margin-top: -0.75rem;
+}
+
+.status-card {
+  border: 1px solid #e2e6ea;
+  border-radius: 12px;
+  padding: 1.5rem;
+  background: #f8fafc;
+  font-size: 1.1rem;
+}
+
+.ok {
+  color: #0f5132;
+  font-weight: 600;
+}
+
+.error {
+  color: #842029;
+  font-weight: 600;
+}
