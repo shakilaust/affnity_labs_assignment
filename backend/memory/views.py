@@ -13,6 +13,7 @@ from .models import (
     UserProfile,
 )
 from .learning import process_feedback_event
+from .llm import generate_design_suggestions
 from .retrieval import resolve_context
 from .serializers import (
     DesignVersionSerializer,
@@ -38,6 +39,27 @@ def resolve_context_view(request):
         return Response({'detail': 'user_id is required'}, status=status.HTTP_400_BAD_REQUEST)
     payload = resolve_context(user_id=user_id, message=message)
     return Response(payload)
+
+
+@api_view(['POST'])
+def assistant_suggest(request):
+    user_id = request.data.get('user_id')
+    project_id = request.data.get('project_id')
+    message = request.data.get('message', '')
+    if not user_id or not project_id:
+        return Response(
+            {'detail': 'user_id and project_id are required'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    context = resolve_context(user_id=user_id, message=message)
+    suggestions = generate_design_suggestions(context, message)
+    return Response(
+        {
+            'context': context,
+            'suggestions': suggestions.get('suggestions', []),
+            'image_prompts': suggestions.get('image_prompts', []),
+        }
+    )
 
 
 def _create_demo_images(version, count=5):
@@ -201,9 +223,14 @@ class DesignVersionViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = DesignVersion.objects.select_related('project').all()
     serializer_class = DesignVersionSerializer
 
-    @action(detail=True, methods=['post'], url_path='images')
+    @action(detail=True, methods=['get', 'post'], url_path='images')
     def images(self, request, pk=None):
         version = self.get_object()
+        if request.method == 'GET':
+            images = GeneratedImage.objects.filter(design_version=version).order_by('-created_at')
+            serializer = GeneratedImageSerializer(images, many=True)
+            return Response(serializer.data)
+
         serializer = GeneratedImageSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save(design_version=version)
