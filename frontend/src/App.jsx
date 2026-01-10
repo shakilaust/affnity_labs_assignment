@@ -1,7 +1,6 @@
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { getAuthToken } from './api'
 import AppShell from './pages/AppShell'
-import DemoPage from './pages/DemoPage'
 import LandingPage from './pages/LandingPage'
 import LoginPage from './pages/LoginPage'
 import SignupPage from './pages/SignupPage'
@@ -26,14 +25,6 @@ function App() {
         element={
           <ProtectedRoute>
             <AppShell />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/app/demo"
-        element={
-          <ProtectedRoute>
-            <DemoPage />
           </ProtectedRoute>
         }
       />

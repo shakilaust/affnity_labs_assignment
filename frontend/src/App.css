@@ -497,13 +497,15 @@ button.ghost {
   align-items: center;
 }
 
-.chat-input input {
+.chat-input input,
+.chat-input textarea {
   flex: 1;
   border-radius: 16px;
   border: 1px solid #d2d7dc;
   padding: 0.85rem 1rem;
   background: #fff;
   font-size: 1rem;
+  resize: none;
 }
 
 .modal-overlay {
