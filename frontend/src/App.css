@@ -521,6 +521,22 @@ button.ghost {
   padding: 1rem;
   box-shadow: 0 20px 45px rgba(20, 22, 26, 0.08);
   overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.bubble-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+}
+
+.bubble-row.user {
+  justify-content: flex-end;
+}
+
+.bubble-row.assistant {
+  justify-content: flex-start;
 }
 
 .chat-bubble {
@@ -528,12 +544,12 @@ button.ghost {
   padding: 0.7rem 0.9rem;
   background: #f5efe7;
   margin-bottom: 0.75rem;
+  max-width: 70%;
 }
 
 .chat-bubble.user {
   background: #2f2f2f;
   color: #fff;
-  margin-left: auto;
 }
 
 .chat-bubble.assistant {
@@ -552,6 +568,48 @@ button.ghost {
   letter-spacing: 0.08em;
   margin: 0 0 0.5rem;
   color: #6c7075;
+}
+
+.chat-agent {
+  font-size: 0.75rem;
+  font-weight: 600;
+  margin: 0 0 0.25rem;
+  color: #2b2a24;
+}
+
+.avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #2f2f2f;
+  color: #fff;
+  font-size: 0.7rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.thinking {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.thinking .dots {
+  display: inline-block;
+  animation: pulse 1.2s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.3;
+  }
 }
 
 .chat-empty {

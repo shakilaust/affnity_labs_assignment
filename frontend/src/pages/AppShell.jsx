@@ -27,6 +27,7 @@ export default function AppShell() {
   const [actionError, setActionError] = useState('')
   const [showProjectModal, setShowProjectModal] = useState(false)
   const [projectPreviews, setProjectPreviews] = useState({})
+  const [isSending, setIsSending] = useState(false)
   const chatEndRef = useRef(null)
 
   const selectedProject = useMemo(
@@ -191,6 +192,31 @@ export default function AppShell() {
     }
   }
 
+  const appendMessage = (message) => {
+    setMessages((prev) => [...prev, message])
+  }
+
+  const updateMessageById = (id, updater) => {
+    setMessages((prev) =>
+      prev.map((message) => (message.id === id ? updater(message) : message))
+    )
+  }
+
+  const revealAssistantText = (id, fullText) => {
+    const words = fullText.split(' ')
+    let index = 0
+    const interval = setInterval(() => {
+      index += 1
+      updateMessageById(id, (message) => ({
+        ...message,
+        content: words.slice(0, index).join(' '),
+      }))
+      if (index >= words.length) {
+        clearInterval(interval)
+      }
+    }, Math.max(25, 800 / Math.max(words.length, 1)))
+  }
+
   const sendMessage = async (overrideText) => {
     if (!selectedProjectId) {
       handleError(new Error('Select a project first'))
@@ -200,6 +226,27 @@ export default function AppShell() {
     if (!textToSend) {
       return
     }
+    if (isSending) {
+      return
+    }
+    const tempUserId = `temp-user-${Date.now()}`
+    const tempAssistantId = `temp-assistant-${Date.now()}`
+    appendMessage({
+      id: tempUserId,
+      role: 'user',
+      content: textToSend,
+      created_at: new Date().toISOString(),
+    })
+    appendMessage({
+      id: tempAssistantId,
+      role: 'assistant',
+      content: 'Thinking...',
+      created_at: new Date().toISOString(),
+      isPending: true,
+      retryText: textToSend,
+    })
+    setChatInput('')
+    setIsSending(true)
     try {
       const payload = {
         project_id: Number(selectedProjectId),
@@ -210,8 +257,17 @@ export default function AppShell() {
         headers: jsonHeaders,
         body: JSON.stringify(payload),
       })
-      setChatInput('')
-      await loadMessages(selectedProjectId)
+      updateMessageById(tempAssistantId, (message) => ({
+        ...message,
+        content: data.assistant_message,
+        isPending: false,
+        metadata_json: {
+          design_options: data.design_options || [],
+          resolved_context: data.resolved_context || null,
+          version_id: data.created_version_id || null,
+        },
+      }))
+      revealAssistantText(tempAssistantId, data.assistant_message)
       setProjectPreviews((prev) => ({
         ...prev,
         [selectedProjectId]: {
@@ -221,7 +277,15 @@ export default function AppShell() {
         },
       }))
     } catch (err) {
+      updateMessageById(tempAssistantId, (message) => ({
+        ...message,
+        content: 'Something went wrong. Please try again.',
+        isPending: false,
+        isError: true,
+      }))
       handleError(err)
+    } finally {
+      setIsSending(false)
     }
   }
 
@@ -253,6 +317,51 @@ export default function AppShell() {
       await loadMessages(selectedProjectId)
     } catch (err) {
       handleError(err)
+    }
+  }
+
+  const retryAssistant = async (messageId, text) => {
+    if (!text) {
+      return
+    }
+    updateMessageById(messageId, (message) => ({
+      ...message,
+      content: 'Thinking...',
+      isPending: true,
+      isError: false,
+    }))
+    setIsSending(true)
+    try {
+      const payload = {
+        project_id: Number(selectedProjectId),
+        message: text,
+      }
+      const data = await fetchJson(`${API_BASE}/agent/chat`, {
+        method: 'POST',
+        headers: jsonHeaders,
+        body: JSON.stringify(payload),
+      })
+      updateMessageById(messageId, (message) => ({
+        ...message,
+        content: data.assistant_message,
+        isPending: false,
+        metadata_json: {
+          design_options: data.design_options || [],
+          resolved_context: data.resolved_context || null,
+          version_id: data.created_version_id || null,
+        },
+      }))
+      revealAssistantText(messageId, data.assistant_message)
+    } catch (err) {
+      updateMessageById(messageId, (message) => ({
+        ...message,
+        content: 'Something went wrong. Please try again.',
+        isPending: false,
+        isError: true,
+      }))
+      handleError(err)
+    } finally {
+      setIsSending(false)
     }
   }
 
@@ -316,7 +425,8 @@ export default function AppShell() {
         chatInput={chatInput}
         setChatInput={setChatInput}
         chatEndRef={chatEndRef}
-        disabled={!selectedProjectId}
+        disabled={!selectedProjectId || isSending}
+        onRetry={retryAssistant}
       />
 
       {showProjectModal && (

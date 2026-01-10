@@ -23,6 +23,7 @@ export default function ChatPanel({
   setChatInput,
   chatEndRef,
   disabled,
+  onRetry,
 }) {
   return (
     <main className="chat-panel">
@@ -70,6 +71,7 @@ export default function ChatPanel({
             key={message.id}
             message={message}
             onSelectOption={onSelectOption}
+            onRetry={onRetry}
           />
         ))}
         <div ref={chatEndRef} />
