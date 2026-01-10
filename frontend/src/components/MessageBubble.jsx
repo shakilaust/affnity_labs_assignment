@@ -3,7 +3,9 @@ import '../App.css'
 export default function MessageBubble({ message, onSelectOption }) {
   const metadata = message.metadata_json || {}
   const options = metadata.design_options || []
-  const context = metadata.context
+  const context = metadata.resolved_context || metadata.context
+  const versionId = metadata.version_id
+  const saved = metadata.saved
 
   return (
     <div className={`chat-bubble ${message.role}`}>
@@ -11,12 +13,29 @@ export default function MessageBubble({ message, onSelectOption }) {
         {message.role} · {new Date(message.created_at).toLocaleString()}
       </p>
       <p>{message.content}</p>
+      {message.role === 'assistant' && (versionId || saved) && (
+        <div className="status-row">
+          {versionId && <span className="status-pill">Revision created (v{versionId})</span>}
+          {saved && <span className="status-pill success">Saved ✓</span>}
+        </div>
+      )}
       {message.role === 'assistant' && options.length > 0 && (
         <div className="options-panel">
           <h3>Design options</h3>
           <div className="options-grid">
             {options.map((option, index) => (
               <div key={index} className="option-card">
+                {option.image_url && (
+                  <img
+                    src={option.image_url}
+                    alt={option.title}
+                    loading="lazy"
+                    onError={(event) => {
+                      event.currentTarget.dataset.error = 'true'
+                      console.warn('Image failed to load', option.image_url)
+                    }}
+                  />
+                )}
                 <h4>{option.title}</h4>
                 <p>{option.description}</p>
                 <p className="muted">{option.image_prompt}</p>
@@ -65,6 +84,12 @@ function ContextSummary({ context }) {
             : 'None'}
         </div>
       </div>
+      {context.retrieval_reason && (
+        <div>
+          <strong>Reason</strong>
+          <p className="muted">{context.retrieval_reason}</p>
+        </div>
+      )}
       <div>
         <strong>Reference</strong>
         <p className="muted">
