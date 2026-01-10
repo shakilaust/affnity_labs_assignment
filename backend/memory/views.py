@@ -88,12 +88,21 @@ def agent_chat(request):
     )
 
     context = resolve_context(user_id=request.user.id, message=message, project_id=project.id)
-    llm_payload = generate_agent_response(context, message)
+    try:
+        llm_payload = generate_agent_response(context, message)
+    except Exception:
+        llm_payload = {
+            'reply': 'I hit a snag generating a full response, but I can still help.',
+            'design_options': [],
+            'version_action': {'type': 'none'},
+            'preference_hints': [],
+        }
 
     created_version_id = None
     created_images = []
     version_action = llm_payload.get('version_action', {})
     action_type = version_action.get('type', 'none')
+    enriched_options = []
 
     if action_type in ('create_version', 'revise_version'):
         parent_version = None
@@ -123,7 +132,29 @@ def agent_chat(request):
             created_images.append(
                 {'id': image.id, 'image_url': image.image_url, 'prompt': image.prompt}
             )
+            enriched_options.append(
+                {
+                    'id': f'opt_{index}',
+                    'title': option.get('title') or f'Option {index}',
+                    'description': option.get('description') or '',
+                    'image_prompt': prompt,
+                    'image_url': image.image_url,
+                }
+            )
+    else:
+        for index, option in enumerate(llm_payload.get('design_options', []), start=1):
+            prompt = option.get('image_prompt') or option.get('description') or 'Design option'
+            enriched_options.append(
+                {
+                    'id': f'opt_{index}',
+                    'title': option.get('title') or f'Option {index}',
+                    'description': option.get('description') or '',
+                    'image_prompt': prompt,
+                    'image_url': f'https://picsum.photos/seed/{project.id}-{index}/600/400',
+                }
+            )
 
+    saved_flag = False
     if action_type == 'save_final' or 'save' in message.lower():
         canonical_version = get_canonical_version(project.id)
         if canonical_version is None and created_version_id:
@@ -138,6 +169,7 @@ def agent_chat(request):
             event_type='save',
             payload_json={'note': 'saved via chat'},
         )
+        saved_flag = True
 
     assistant_content = llm_payload.get('reply', '')
     assistant_message = ChatMessage.objects.create(
@@ -146,10 +178,12 @@ def agent_chat(request):
         role='assistant',
         content=assistant_content,
         metadata_json={
-            'context': context,
-            'created_version_id': created_version_id,
+            'resolved_context': context,
+            'version_id': created_version_id,
             'created_images': created_images,
-            'design_options': llm_payload.get('design_options', []),
+            'design_options': enriched_options,
+            'saved': saved_flag,
+            'action_type': action_type,
         },
     )
 
@@ -157,7 +191,7 @@ def agent_chat(request):
         {
             'assistant_message': assistant_message.content,
             'resolved_context': context,
-            'design_options': llm_payload.get('design_options', []),
+            'design_options': enriched_options,
             'created_version_id': created_version_id,
             'created_images': created_images,
         }
@@ -269,14 +303,20 @@ def demo_seed(request):
             'metadata_json': {
                 'design_options': [
                     {
+                        'id': f'opt_{index}',
                         'title': f'Option {index}',
                         'description': 'Modern, clean-lined bedroom palette.',
                         'image_prompt': f'Option {index} modern bedroom',
+                        'image_url': f'https://picsum.photos/seed/{v1.id}-{index}/640/420',
                     }
                     for index in range(1, 6)
                 ],
-                'created_version_id': v1.id,
-                'context': resolve_context(user_id=user.id, message='modern bedroom', project_id=bedroom.id),
+                'version_id': v1.id,
+                'resolved_context': resolve_context(
+                    user_id=user.id,
+                    message='modern bedroom',
+                    project_id=bedroom.id,
+                ),
             }
         },
     )
@@ -291,7 +331,7 @@ def demo_seed(request):
         project=bedroom,
         role='assistant',
         content='Updated with warmer tones and softer lighting.',
-        defaults={'metadata_json': {'created_version_id': v2.id}},
+        defaults={'metadata_json': {'version_id': v2.id}},
     )
     ChatMessage.objects.get_or_create(
         user=user,
@@ -520,6 +560,24 @@ class ProjectViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         serializer.save(project=project, user=request.user)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=['get'], url_path='previews')
+    def previews(self, request):
+        projects = Project.objects.filter(user=request.user).order_by('-updated_at')
+        latest_messages = (
+            ChatMessage.objects.filter(project__in=projects)
+            .order_by('project_id', '-created_at')
+        )
+        previews = {}
+        for message in latest_messages:
+            if message.project_id not in previews:
+                previews[message.project_id] = {
+                    'id': message.id,
+                    'role': message.role,
+                    'content': message.content,
+                    'created_at': message.created_at,
+                }
+        return Response(previews)
 
 
 class DesignVersionViewSet(viewsets.ReadOnlyModelViewSet):

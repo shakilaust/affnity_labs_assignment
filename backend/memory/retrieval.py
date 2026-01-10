@@ -42,6 +42,16 @@ def _detect_reference_room_type(message: str) -> Optional[str]:
     return None
 
 
+def _detect_reference_reason(message: str) -> Optional[str]:
+    lower = (message or '').lower()
+    for phrase in ROOM_ALIASES:
+        if f'same vibe as {phrase}' in lower:
+            return f'same vibe as {phrase}'
+        if f'like {phrase}' in lower:
+            return f'like {phrase}'
+    return None
+
+
 def _serialize_project(project: Project) -> Dict:
     return {
         'id': project.id,
@@ -95,6 +105,7 @@ def _serialize_version(version: DesignVersion) -> Dict:
 def resolve_context(user_id: int, message: str, project_id: Optional[int] = None) -> Dict:
     target_room_type = _detect_room_type(message)
     reference_room_type = _detect_reference_room_type(message)
+    retrieval_reason = _detect_reference_reason(message)
 
     target_project = None
     if project_id:
@@ -176,6 +187,7 @@ def resolve_context(user_id: int, message: str, project_id: Optional[int] = None
     return {
         'target_room_type': target_room_type,
         'reference_room_type': reference_room_type,
+        'retrieval_reason': retrieval_reason,
         'target_project': _serialize_project(target_project) if target_project else None,
         'reference_project': _serialize_project(reference_project) if reference_project else None,
         'preferences': [_serialize_preference(pref) for pref in preferences],
