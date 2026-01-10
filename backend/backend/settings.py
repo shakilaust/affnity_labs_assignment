@@ -16,7 +16,9 @@ from pathlib import Path
 from dotenv import load_dotenv
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+# Load environment from backend/.env (preferred) and backend/backend/.env (fallback)
 load_dotenv(BASE_DIR / '.env')
+load_dotenv(BASE_DIR / 'backend' / '.env')
 
 
 # Quick-start development settings - unsuitable for production

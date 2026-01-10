@@ -9,7 +9,7 @@ class ClaudeClient:
         if not api_key:
             raise ValueError('Anthropic API key is required')
         self.api_key = api_key
-        self.model = os.environ.get('ANTHROPIC_MODEL', 'claude-3-5-sonnet-20240620')
+        self.model = os.environ.get('ANTHROPIC_MODEL', 'claude-3-5-sonnet-latest')
 
     def generate(self, prompt, max_tokens=800):
         payload = {
