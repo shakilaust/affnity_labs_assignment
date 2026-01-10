@@ -135,6 +135,16 @@ export default function AppShell() {
       if (data.length && !selectedProjectId) {
         setSelectedProjectId(`${data[0].id}`)
       }
+      await loadPreviews()
+    } catch (err) {
+      handleError(err)
+    }
+  }
+
+  const loadPreviews = async () => {
+    try {
+      const data = await fetchJson(`${API_BASE}/projects/previews/`)
+      setProjectPreviews(data || {})
     } catch (err) {
       handleError(err)
     }
