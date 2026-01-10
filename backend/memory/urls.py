@@ -8,6 +8,7 @@ from .views import (
     ProjectLinkViewSet,
     ProjectViewSet,
     UserProfileViewSet,
+    agent_chat,
     assistant_suggest,
     demo_create_user,
     demo_reset,
@@ -29,6 +30,7 @@ router.register(r'preferences', PreferenceViewSet, basename='preferences')
 urlpatterns = [
     path('health', health, name='health'),
     path('context/resolve', resolve_context_view, name='context-resolve'),
+    path('agent/chat', agent_chat, name='agent-chat'),
     path('assistant/suggest', assistant_suggest, name='assistant-suggest'),
     path('demo/seed', demo_seed, name='demo-seed'),
     path('demo/run_step', demo_run_step, name='demo-run-step'),

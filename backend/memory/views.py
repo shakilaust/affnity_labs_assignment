@@ -5,6 +5,7 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 
 from .models import (
+    ChatMessage,
     DesignVersion,
     FeedbackEvent,
     GeneratedImage,
@@ -14,9 +15,10 @@ from .models import (
     UserProfile,
 )
 from .learning import process_feedback_event
-from .llm import generate_design_suggestions
+from .llm import generate_agent_response, generate_design_suggestions
 from .retrieval import resolve_context
 from .serializers import (
+    ChatMessageSerializer,
     DesignVersionSerializer,
     FeedbackEventSerializer,
     GeneratedImageSerializer,
@@ -37,9 +39,10 @@ def health(request):
 def resolve_context_view(request):
     user_id = request.data.get('user_id')
     message = request.data.get('message', '')
+    project_id = request.data.get('project_id')
     if not user_id:
         return Response({'detail': 'user_id is required'}, status=status.HTTP_400_BAD_REQUEST)
-    payload = resolve_context(user_id=user_id, message=message)
+    payload = resolve_context(user_id=user_id, message=message, project_id=project_id)
     return Response(payload)
 
 
@@ -53,13 +56,102 @@ def assistant_suggest(request):
             {'detail': 'user_id and project_id are required'},
             status=status.HTTP_400_BAD_REQUEST,
         )
-    context = resolve_context(user_id=user_id, message=message)
+    context = resolve_context(user_id=user_id, message=message, project_id=project_id)
     suggestions = generate_design_suggestions(context, message)
     return Response(
         {
             'context': context,
             'suggestions': suggestions.get('suggestions', []),
             'image_prompts': suggestions.get('image_prompts', []),
+        }
+    )
+
+
+@api_view(['POST'])
+def agent_chat(request):
+    project_id = request.data.get('project_id')
+    message = request.data.get('message', '')
+    if not project_id or not message:
+        return Response(
+            {'detail': 'project_id and message are required'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    project = Project.objects.filter(id=project_id, user=request.user).first()
+    if not project:
+        return Response({'detail': 'Project not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    user_message = ChatMessage.objects.create(
+        user=request.user,
+        project=project,
+        role='user',
+        content=message,
+    )
+
+    context = resolve_context(user_id=request.user.id, message=message, project_id=project.id)
+    llm_payload = generate_agent_response(context, message)
+
+    created_version_id = None
+    created_images = []
+    version_action = llm_payload.get('version_action', {})
+    action_type = version_action.get('type', 'none')
+
+    if action_type in ('create_version', 'revise_version'):
+        parent_version = None
+        parent_id = version_action.get('parent_version_id')
+        if parent_id:
+            parent_version = DesignVersion.objects.filter(
+                id=parent_id,
+                project=project,
+            ).first()
+        version_notes = version_action.get('notes') or 'Assistant suggested update'
+        version = DesignVersion.objects.create(
+            project=project,
+            parent_version=parent_version,
+            notes=version_notes,
+        )
+        created_version_id = version.id
+        for index, option in enumerate(llm_payload.get('design_options', []), start=1):
+            prompt = option.get('image_prompt') or option.get('description') or 'Design option'
+            image = GeneratedImage.objects.create(
+                design_version=version,
+                prompt=prompt,
+                params_json={'option_index': index},
+                image_url=f'https://picsum.photos/seed/{version.id}-{index}/600/400',
+            )
+            created_images.append(
+                {'id': image.id, 'image_url': image.image_url, 'prompt': image.prompt}
+            )
+
+    if action_type == 'save_final' or 'save' in message.lower():
+        FeedbackEvent.objects.create(
+            user=request.user,
+            project=project,
+            design_version=None,
+            event_type='save',
+            payload_json={'note': 'saved via chat'},
+        )
+
+    assistant_content = llm_payload.get('reply', '')
+    assistant_message = ChatMessage.objects.create(
+        user=request.user,
+        project=project,
+        role='assistant',
+        content=assistant_content,
+        metadata_json={
+            'context': context,
+            'created_version_id': created_version_id,
+            'created_images': created_images,
+            'design_options': llm_payload.get('design_options', []),
+        },
+    )
+
+    return Response(
+        {
+            'assistant_message': assistant_message.content,
+            'resolved_context': context,
+            'design_options': llm_payload.get('design_options', []),
+            'created_version_id': created_version_id,
+            'created_images': created_images,
         }
     )
 
@@ -345,6 +437,19 @@ class ProjectViewSet(viewsets.ModelViewSet):
         serializer = DesignVersionSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save(project=project)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['get', 'post'], url_path='messages')
+    def messages(self, request, pk=None):
+        project = self.get_object()
+        if request.method == 'GET':
+            messages = ChatMessage.objects.filter(project=project).order_by('created_at')
+            serializer = ChatMessageSerializer(messages, many=True)
+            return Response(serializer.data)
+
+        serializer = ChatMessageSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save(project=project, user=request.user)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 

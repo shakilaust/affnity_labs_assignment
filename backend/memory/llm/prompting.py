@@ -31,3 +31,31 @@ def build_prompt(context, message):
         '}',
     ]
     return '\n'.join(prompt_parts)
+
+
+def build_agent_prompt(context, message):
+    prompt_parts = [
+        'You are an interior design assistant.',
+        'Return JSON only. No markdown or extra text.',
+        '',
+        'Context:',
+        json.dumps(context, ensure_ascii=True),
+        '',
+        'User message:',
+        message,
+        '',
+        'Output JSON schema:',
+        '{',
+        '  "reply": "text to show user",',
+        '  "design_options": [',
+        '    {"title": "...", "description": "...", "image_prompt": "..."}',
+        '  ],',
+        '  "version_action": {',
+        '    "type": "create_version" | "revise_version" | "save_final" | "none",',
+        '    "notes": "...",',
+        '    "parent_version_id": null',
+        '  },',
+        '  "preference_hints": [{"key": "tone", "value": "warm"}]',
+        '}',
+    ]
+    return '\n'.join(prompt_parts)

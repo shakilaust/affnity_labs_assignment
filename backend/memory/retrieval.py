@@ -79,12 +79,16 @@ def _serialize_version(version: DesignVersion) -> Dict:
     }
 
 
-def resolve_context(user_id: int, message: str) -> Dict:
+def resolve_context(user_id: int, message: str, project_id: Optional[int] = None) -> Dict:
     target_room_type = _detect_room_type(message)
     reference_room_type = _detect_reference_room_type(message)
 
     target_project = None
-    if target_room_type:
+    if project_id:
+        target_project = (
+            Project.objects.filter(id=project_id, user_id=user_id).first()
+        )
+    if target_room_type and target_project is None:
         target_project = (
             Project.objects.filter(user_id=user_id, room_type=target_room_type)
             .order_by('-updated_at', '-id')
