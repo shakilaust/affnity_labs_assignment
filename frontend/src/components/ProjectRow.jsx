@@ -38,7 +38,7 @@ export default function ProjectRow({
   return (
     <button
       type="button"
-      className={`project-item ${isActive ? 'active' : ''}`}
+      className={`project-item flat ${isActive ? 'active' : ''}`}
       onClick={() => onSelect(`${project.id}`)}
     >
       <div className="project-row">

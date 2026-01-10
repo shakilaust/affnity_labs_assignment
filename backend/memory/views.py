@@ -516,6 +516,10 @@ class ProjectViewSet(viewsets.ModelViewSet):
     queryset = Project.objects.select_related('user').all()
     serializer_class = ProjectSerializer
 
+    def get_queryset(self):
+        # Always scope projects to the authenticated user
+        return Project.objects.select_related('user').filter(user=self.request.user)
+
     def perform_create(self, serializer):
         project = serializer.save()
         DesignVersion.objects.get_or_create(

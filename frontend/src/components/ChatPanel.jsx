@@ -31,9 +31,11 @@ export default function ChatPanel({
     <main className="chat-panel">
       <header className="chat-header">
         <div>
-          <h1>{selectedProject ? selectedProject.title : 'Select a project'}</h1>
+          <h1>{selectedProject ? selectedProject.title : 'ChatGPT-style designer'}</h1>
           <p className="muted">
-            {selectedProject ? formatRoomType(selectedProject.room_type) : 'Choose from the sidebar'}
+            {selectedProject
+              ? formatRoomType(selectedProject.room_type)
+              : 'Select a project or create a new one to begin'}
           </p>
         </div>
         {selectedProject && (
@@ -55,7 +57,8 @@ export default function ChatPanel({
       <div className="chat-history">
         {!selectedProject && (
           <div className="chat-empty">
-            <p className="muted">Pick a project or create a new one to start chatting.</p>
+            <p className="muted large">Ready when you are.</p>
+            <p className="muted">Select a project or create one on the left.</p>
           </div>
         )}
         {selectedProject && isLoading && (
@@ -83,8 +86,8 @@ export default function ChatPanel({
         )}
         {!isLoading &&
           messages.map((message) => (
-          <MessageBubble
-            key={message.id}
+            <MessageBubble
+              key={message.id}
             message={message}
             onSelectOption={onSelectOption}
             onRetry={onRetry}

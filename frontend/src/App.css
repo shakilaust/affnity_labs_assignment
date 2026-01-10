@@ -390,6 +390,24 @@ button.ghost {
   gap: 0.5rem;
 }
 
+.sidebar-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.section-heading h4 {
+  margin: 0;
+  font-size: 0.95rem;
+  color: #2b2a24;
+}
+
 .sidebar-header {
   display: flex;
   align-items: flex-start;
@@ -422,23 +440,28 @@ button.ghost {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+  max-height: calc(100vh - 240px);
+  overflow-y: auto;
 }
 
 .project-item {
   text-align: left;
-  border-radius: 16px;
-  padding: 0.8rem 1rem;
-  border: 1px solid #e1e5ea;
-  background: #fff;
+  padding: 0.75rem 0.25rem;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
   display: flex;
   flex-direction: column;
-  gap: 0.3rem;
+}
+
+.project-item.flat {
+  padding: 0.6rem 0.25rem;
+  border-radius: 10px;
 }
 
 .project-item.active {
-  border-color: #d0895b;
-  background: #fff3e8;
-  box-shadow: inset 4px 0 0 #d0895b;
+  background: rgba(208, 137, 91, 0.12);
+  box-shadow: inset 3px 0 0 #d0895b;
 }
 
 .project-row {
@@ -639,6 +662,10 @@ button.ghost {
   height: 100%;
   gap: 1rem;
   text-align: center;
+}
+
+.chat-empty .large {
+  font-size: 1.2rem;
 }
 
 .chat-input {
