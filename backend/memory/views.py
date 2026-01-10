@@ -16,7 +16,7 @@ from .models import (
 )
 from .learning import process_feedback_event
 from .llm import generate_agent_response, generate_design_suggestions
-from .retrieval import resolve_context
+from .retrieval import get_canonical_version, resolve_context
 from .serializers import (
     ChatMessageSerializer,
     DesignVersionSerializer,
@@ -103,6 +103,8 @@ def agent_chat(request):
                 id=parent_id,
                 project=project,
             ).first()
+        if parent_version is None:
+            parent_version = get_canonical_version(project.id)
         version_notes = version_action.get('notes') or 'Assistant suggested update'
         version = DesignVersion.objects.create(
             project=project,
@@ -123,10 +125,16 @@ def agent_chat(request):
             )
 
     if action_type == 'save_final' or 'save' in message.lower():
+        canonical_version = get_canonical_version(project.id)
+        if canonical_version is None and created_version_id:
+            canonical_version = DesignVersion.objects.filter(
+                id=created_version_id,
+                project=project,
+            ).first()
         FeedbackEvent.objects.create(
             user=request.user,
             project=project,
-            design_version=None,
+            design_version=canonical_version,
             event_type='save',
             payload_json={'note': 'saved via chat'},
         )

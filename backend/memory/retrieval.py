@@ -3,6 +3,19 @@ from typing import Dict, Optional
 from .models import DesignVersion, FeedbackEvent, GeneratedImage, Preference, Project
 
 
+def get_canonical_version(project_id: int) -> Optional[DesignVersion]:
+    last_save = (
+        FeedbackEvent.objects.filter(
+            project_id=project_id,
+            event_type='save',
+            design_version__isnull=False,
+        )
+        .order_by('-created_at')
+        .first()
+    )
+    return last_save.design_version if last_save else None
+
+
 ROOM_ALIASES = {
     'living room': 'living_room',
     'livingroom': 'living_room',
@@ -138,11 +151,13 @@ def resolve_context(user_id: int, message: str, project_id: Optional[int] = None
 
     reference_summary = None
     if reference_project:
-        latest_version = (
-            DesignVersion.objects.filter(project=reference_project)
-            .order_by('-version_number', '-created_at')
-            .first()
-        )
+        latest_version = get_canonical_version(reference_project.id)
+        if latest_version is None:
+            latest_version = (
+                DesignVersion.objects.filter(project=reference_project)
+                .order_by('-version_number', '-created_at')
+                .first()
+            )
         images = list(
             GeneratedImage.objects.filter(design_version__project=reference_project)
             .order_by('-created_at')[:3]

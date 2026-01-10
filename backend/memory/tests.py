@@ -5,7 +5,7 @@ from django.utils import timezone
 
 from .learning import process_feedback_event
 from .models import DesignVersion, FeedbackEvent, Preference, Project
-from .retrieval import resolve_context
+from .retrieval import get_canonical_version, resolve_context
 
 
 User = get_user_model()
@@ -89,3 +89,33 @@ class ContextRetrievalTests(TestCase):
         )
         self.assertIsNotNone(payload['reference_project'])
         self.assertEqual(payload['reference_project']['id'], self.bedroom.id)
+
+
+class CanonicalVersionTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create(username='canonical')
+        self.project = Project.objects.create(
+            user=self.user,
+            room_type='bedroom',
+            title='Canonical Bedroom',
+        )
+        self.version_one = DesignVersion.objects.create(project=self.project, notes='v1')
+        self.version_two = DesignVersion.objects.create(project=self.project, notes='v2')
+
+    def test_get_canonical_version_returns_last_saved(self):
+        FeedbackEvent.objects.create(
+            user=self.user,
+            project=self.project,
+            design_version=self.version_one,
+            event_type='save',
+            payload_json={'note': 'saved v1'},
+        )
+        FeedbackEvent.objects.create(
+            user=self.user,
+            project=self.project,
+            design_version=self.version_two,
+            event_type='save',
+            payload_json={'note': 'saved v2'},
+        )
+        canonical = get_canonical_version(self.project.id)
+        self.assertEqual(canonical.id, self.version_two.id)
