@@ -31,6 +31,9 @@ export default function AppShell() {
   const [isSending, setIsSending] = useState(false)
   const [socket, setSocket] = useState(null)
   const chatEndRef = useRef(null)
+  const messagesLoadRef = useRef({ projectId: null, inFlight: false })
+  const lastLoadedProjectRef = useRef(null)
+  const initialProjectResolvedRef = useRef(false)
 
   const selectedProject = useMemo(
     () => projects.find((project) => `${project.id}` === `${selectedProjectId}`),
@@ -107,7 +110,7 @@ export default function AppShell() {
 
   useEffect(() => {
     if (selectedProjectId) {
-      loadMessages(selectedProjectId)
+      loadMessages(selectedProjectId, { force: true })
       if (currentUser) {
         window.localStorage.setItem(`active_project_id_${currentUser.id}`, selectedProjectId)
       }
@@ -178,17 +181,19 @@ export default function AppShell() {
 
   useEffect(() => {
     if (!currentUser) {
+      initialProjectResolvedRef.current = false
       return
     }
     const urlProjectId = searchParams.get('p')
     const storedProjectId = window.localStorage.getItem(
-        `active_project_id_${currentUser.id}`
-      )
+      `active_project_id_${currentUser.id}`
+    )
     const preferredId = urlProjectId || storedProjectId
-    if (preferredId && preferredId !== selectedProjectId) {
+    if (preferredId && !initialProjectResolvedRef.current) {
       setSelectedProjectId(preferredId)
+      initialProjectResolvedRef.current = true
     }
-  }, [searchParams, selectedProjectId, currentUser])
+  }, [searchParams, currentUser])
 
   const handleError = (err) => {
     setActionError(err.message || 'Something went wrong')
@@ -242,15 +247,29 @@ export default function AppShell() {
     }
   }
 
-  const loadMessages = async (projectId) => {
+  const loadMessages = async (projectId, { force = false } = {}) => {
     if (!projectId) {
       return
     }
+    if (!force && lastLoadedProjectRef.current === projectId) {
+      return
+    }
+    if (
+      !force &&
+      messagesLoadRef.current.inFlight &&
+      messagesLoadRef.current.projectId === projectId
+    ) {
+      return
+    }
+    messagesLoadRef.current = { projectId, inFlight: true }
     try {
       setIsLoadingMessages(true)
-      setMessages([])
+      if (lastLoadedProjectRef.current !== projectId) {
+        setMessages([])
+      }
       const data = await fetchJson(`${API_BASE}/projects/${projectId}/messages/`)
       setMessages(data)
+      lastLoadedProjectRef.current = projectId
       const lastMessage = data[data.length - 1]
       if (lastMessage) {
         setProjectPreviews((prev) => ({
@@ -261,6 +280,7 @@ export default function AppShell() {
     } catch (err) {
       handleError(err)
     } finally {
+      messagesLoadRef.current = { projectId: null, inFlight: false }
       setIsLoadingMessages(false)
     }
   }
@@ -410,7 +430,7 @@ export default function AppShell() {
           content: `Noted. Option ${optionIndex} is selected. I'll use it as the base for further tweaks.`,
         }),
       })
-      await loadMessages(selectedProjectId)
+      await loadMessages(selectedProjectId, { force: true })
     } catch (err) {
       handleError(err)
     }
@@ -498,7 +518,7 @@ export default function AppShell() {
           content: 'Saved. I will treat this as the canonical version for this project.',
         }),
       })
-      await loadMessages(selectedProjectId)
+      await loadMessages(selectedProjectId, { force: true })
     } catch (err) {
       handleError(err)
     }
@@ -519,9 +539,21 @@ export default function AppShell() {
   }
 
   const handleProjectSelect = (projectId) => {
+    if (!projectId) {
+      return
+    }
     setChatInput('')
     setIsLoadingMessages(true)
     setMessages([])
+    if (socket) {
+      socket.close()
+    }
+    if (selectedProjectId === projectId) {
+      loadMessages(projectId, { force: true }).finally(() => setIsLoadingMessages(false))
+      return
+    }
+    lastLoadedProjectRef.current = null
+    messagesLoadRef.current = { projectId: null, inFlight: false }
     setSelectedProjectId(projectId)
   }
 

@@ -30,12 +30,6 @@ export default function Sidebar({
           <button className="primary small" onClick={onNewProject} type="button">
             + New project
           </button>
-          <button className="ghost small" onClick={onRefresh} type="button">
-            Refresh
-          </button>
-          <button className="ghost small" onClick={onSelectProject.bind(null, '')} type="button">
-            Clear selection
-          </button>
         </div>
       </div>
 
@@ -43,6 +37,7 @@ export default function Sidebar({
         <div className="section-heading">
           <h4>Projects</h4>
         </div>
+        <hr className="sidebar-divider" />
         <div className="project-list flat">
           {projects.map((project) => (
             <ProjectRow
