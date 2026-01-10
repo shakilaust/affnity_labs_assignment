@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { API_BASE, clearAuthToken, fetchJson, jsonHeaders } from '../api'
 import '../App.css'
 
@@ -21,10 +21,9 @@ export default function AppShell() {
   const [selectedProjectId, setSelectedProjectId] = useState('')
   const [messages, setMessages] = useState([])
   const [chatInput, setChatInput] = useState('')
-  const [contextUsed, setContextUsed] = useState(null)
-  const [designOptions, setDesignOptions] = useState([])
   const [actionError, setActionError] = useState('')
   const [showProjectModal, setShowProjectModal] = useState(false)
+  const chatEndRef = useRef(null)
 
   const selectedProject = useMemo(
     () => projects.find((project) => `${project.id}` === `${selectedProjectId}`),
@@ -115,6 +114,12 @@ export default function AppShell() {
     }
   }, [selectedProjectId])
 
+  useEffect(() => {
+    if (chatEndRef.current) {
+      chatEndRef.current.scrollIntoView({ behavior: 'smooth' })
+    }
+  }, [messages])
+
   const loadMessages = async (projectId) => {
     if (!projectId) {
       return
@@ -146,8 +151,6 @@ export default function AppShell() {
         body: JSON.stringify(payload),
       })
       setChatInput('')
-      setContextUsed(data.resolved_context || null)
-      setDesignOptions(data.design_options || [])
       await loadMessages(selectedProjectId)
     } catch (err) {
       handleError(err)
@@ -205,9 +208,9 @@ export default function AppShell() {
         <button className="ghost" onClick={loadProjects} type="button">
           Refresh
         </button>
-        <Link className="button ghost" to="/app/demo">
-          Demo setup
-        </Link>
+        <button className="ghost" onClick={runDemoSeed} type="button">
+          Demo Setup
+        </button>
         <div className="project-list">
           {projects.map((project) => (
             <button
@@ -244,56 +247,67 @@ export default function AppShell() {
         {actionError && <div className="toast">{actionError}</div>}
 
         <div className="chat-history">
-          {messages.length ? (
-            messages.map((message) => (
+          {!selectedProjectId && (
+            <div className="chat-empty">
+              <p className="muted">Pick a project or create a new one to start chatting.</p>
+            </div>
+          )}
+          {selectedProjectId && !messages.length && (
+            <div className="chat-empty">
+              <p className="muted">Tell me what vibe you want.</p>
+            </div>
+          )}
+          {messages.map((message) => {
+            const metadata = message.metadata_json || {}
+            const options = metadata.design_options || []
+            const context = metadata.context
+            return (
               <div key={message.id} className={`chat-bubble ${message.role}`}>
                 <p className="chat-meta">
                   {message.role} · {new Date(message.created_at).toLocaleString()}
                 </p>
                 <p>{message.content}</p>
+                {message.role === 'assistant' && options.length > 0 && (
+                  <div className="options-panel">
+                    <h3>Design options</h3>
+                    <div className="options-grid">
+                      {options.map((option, index) => (
+                        <div key={index} className="option-card">
+                          <h4>{option.title}</h4>
+                          <p>{option.description}</p>
+                          <p className="muted">{option.image_prompt}</p>
+                          <button
+                            className="ghost"
+                            type="button"
+                            onClick={() => selectDesignOption(index + 1)}
+                          >
+                            Select option
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {message.role === 'assistant' && context && (
+                  <details className="context-panel">
+                    <summary>Context used</summary>
+                    <pre>{JSON.stringify(context, null, 2)}</pre>
+                  </details>
+                )}
               </div>
-            ))
-          ) : (
-            <div className="chat-empty">
-              <p className="muted">Tell me what vibe you want.</p>
-            </div>
-          )}
+            )
+          })}
+          <div ref={chatEndRef} />
         </div>
 
-        {designOptions.length > 0 && (
-          <div className="options-panel">
-            <h3>Design options</h3>
-            <div className="options-grid">
-              {designOptions.map((option, index) => (
-                <div key={index} className="option-card">
-                  <h4>{option.title}</h4>
-                  <p>{option.description}</p>
-                  <p className="muted">{option.image_prompt}</p>
-                  <button
-                    className="ghost"
-                    type="button"
-                    onClick={() => selectDesignOption(index + 1)}
-                  >
-                    Select option
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {contextUsed && (
-          <details className="context-panel">
-            <summary>Context used</summary>
-            <pre>{JSON.stringify(contextUsed, null, 2)}</pre>
-          </details>
-        )}
-
         <div className="chat-input">
-          <input
+          <textarea
             value={chatInput}
             onChange={(event) => setChatInput(event.target.value)}
+            onKeyDown={handleInputKeyDown}
             placeholder="Describe the next design change..."
+            rows={2}
+            className="chat-textarea"
           />
           <button onClick={sendMessage} type="button" disabled={!selectedProjectId}>
             Send
@@ -350,3 +364,25 @@ export default function AppShell() {
     </div>
   )
 }
+  const handleInputKeyDown = (event) => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault()
+      sendMessage()
+    }
+  }
+
+  const runDemoSeed = async () => {
+    try {
+      const data = await fetchJson(`${API_BASE}/demo/seed`, {
+        method: 'POST',
+        headers: jsonHeaders,
+      })
+      const bedroom = data.projects?.find((project) => project.room_type === 'bedroom')
+      await loadProjects()
+      if (bedroom) {
+        setSelectedProjectId(`${bedroom.id}`)
+      }
+    } catch (err) {
+      handleError(err)
+    }
+  }

@@ -208,45 +208,107 @@ def _get_or_create_feedback(user, project, version, event_type, payload_json):
 
 @api_view(['POST'])
 def demo_seed(request):
-    user = _get_or_create_demo_user()
-    bedroom = Project.objects.create(
-        user=user,
-        room_type='bedroom',
-        title='Cozy Bedroom',
-    )
-    version = DesignVersion.objects.create(project=bedroom, notes='Initial concept')
-    _create_demo_images(version, count=5)
+    user = request.user
+    bedroom = _get_or_create_project(user, 'bedroom', 'Cozy Bedroom')
+    living_room = _get_or_create_project(user, 'living_room', 'Living Room')
+    office = _get_or_create_project(user, 'office', 'Office')
 
-    select_event = FeedbackEvent.objects.create(
-        user=user,
-        project=bedroom,
-        design_version=version,
-        event_type='select',
-        payload_json={'selected_option_index': 3},
+    v1 = DesignVersion.objects.filter(project=bedroom, version_number=1).first()
+    if not v1:
+        v1 = DesignVersion.objects.create(project=bedroom, notes='Modern bedroom v1')
+        for index in range(1, 6):
+            GeneratedImage.objects.create(
+                design_version=v1,
+                prompt=f'Option {index} modern bedroom',
+                params_json={'seed': index},
+                image_url=f'https://picsum.photos/seed/{v1.id}-{index}/600/400',
+            )
+
+    v2 = DesignVersion.objects.filter(project=bedroom, version_number=2).first()
+    if not v2:
+        v2 = DesignVersion.objects.create(
+            project=bedroom,
+            parent_version=v1,
+            notes='Warmer update',
+        )
+
+    _get_or_create_feedback(
+        user,
+        bedroom,
+        v1,
+        'select',
+        {'selected_option_index': 3},
     )
-    warm_event = FeedbackEvent.objects.create(
-        user=user,
-        project=bedroom,
-        design_version=version,
-        event_type='modify',
-        payload_json={'text': 'make warmer'},
+    _get_or_create_feedback(
+        user,
+        bedroom,
+        v2,
+        'modify',
+        {'text': 'make warmer'},
     )
-    save_event = FeedbackEvent.objects.create(
-        user=user,
-        project=bedroom,
-        design_version=version,
-        event_type='save',
-        payload_json={'note': 'final'},
+    _get_or_create_feedback(
+        user,
+        bedroom,
+        v2,
+        'save',
+        {'note': 'final'},
     )
 
-    for event in (select_event, warm_event, save_event):
-        process_feedback_event(event)
+    ChatMessage.objects.get_or_create(
+        user=user,
+        project=bedroom,
+        role='user',
+        content='Help me design a modern bedroom',
+    )
+    ChatMessage.objects.get_or_create(
+        user=user,
+        project=bedroom,
+        role='assistant',
+        content='Here are five modern bedroom options.',
+        defaults={
+            'metadata_json': {
+                'design_options': [
+                    {
+                        'title': f'Option {index}',
+                        'description': 'Modern, clean-lined bedroom palette.',
+                        'image_prompt': f'Option {index} modern bedroom',
+                    }
+                    for index in range(1, 6)
+                ],
+                'created_version_id': v1.id,
+                'context': resolve_context(user_id=user.id, message='modern bedroom', project_id=bedroom.id),
+            }
+        },
+    )
+    ChatMessage.objects.get_or_create(
+        user=user,
+        project=bedroom,
+        role='user',
+        content='I pick option 3, make it warmer.',
+    )
+    ChatMessage.objects.get_or_create(
+        user=user,
+        project=bedroom,
+        role='assistant',
+        content='Updated with warmer tones and softer lighting.',
+        defaults={'metadata_json': {'created_version_id': v2.id}},
+    )
+    ChatMessage.objects.get_or_create(
+        user=user,
+        project=bedroom,
+        role='user',
+        content='Perfect, save this.',
+    )
 
     return Response(
         {
-            'user_id': user.id,
-            'project_id': bedroom.id,
-            'version_id': version.id,
+            'projects': [
+                {'id': bedroom.id, 'room_type': bedroom.room_type, 'title': bedroom.title},
+                {'id': living_room.id, 'room_type': living_room.room_type, 'title': living_room.title},
+                {'id': office.id, 'room_type': office.room_type, 'title': office.title},
+            ],
+            'bedroom_id': bedroom.id,
+            'version_id': v2.id,
         },
         status=status.HTTP_201_CREATED,
     )
