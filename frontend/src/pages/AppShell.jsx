@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { API_BASE, clearAuthToken, fetchJson, jsonHeaders } from '../api'
 import '../App.css'
 
@@ -205,6 +205,9 @@ export default function AppShell() {
         <button className="ghost" onClick={loadProjects} type="button">
           Refresh
         </button>
+        <Link className="button ghost" to="/app/demo">
+          Demo setup
+        </Link>
         <div className="project-list">
           {projects.map((project) => (
             <button
@@ -252,7 +255,7 @@ export default function AppShell() {
             ))
           ) : (
             <div className="chat-empty">
-              <p className="muted">No messages yet. Start a conversation.</p>
+              <p className="muted">Tell me what vibe you want.</p>
             </div>
           )}
         </div>

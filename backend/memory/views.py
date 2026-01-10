@@ -260,12 +260,7 @@ def demo_create_user(request):
 
 @api_view(['POST'])
 def demo_seed_projects(request):
-    user_id = request.data.get('user_id')
-    if not user_id:
-        return Response({'detail': 'user_id is required'}, status=status.HTTP_400_BAD_REQUEST)
-    user = get_user_model().objects.filter(id=user_id).first()
-    if not user:
-        return Response({'detail': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+    user = request.user
 
     projects = [
         _get_or_create_project(user, 'bedroom', 'Cozy Bedroom'),
@@ -284,12 +279,7 @@ def demo_seed_projects(request):
 
 @api_view(['POST'])
 def demo_seed_story(request):
-    user_id = request.data.get('user_id')
-    if not user_id:
-        return Response({'detail': 'user_id is required'}, status=status.HTTP_400_BAD_REQUEST)
-    user = get_user_model().objects.filter(id=user_id).first()
-    if not user:
-        return Response({'detail': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+    user = request.user
 
     bedroom = _get_or_create_project(user, 'bedroom', 'Cozy Bedroom')
     living_room = _get_or_create_project(user, 'living_room', 'Bright Living Room')
@@ -423,6 +413,15 @@ class UserProfileViewSet(viewsets.ModelViewSet):
 class ProjectViewSet(viewsets.ModelViewSet):
     queryset = Project.objects.select_related('user').all()
     serializer_class = ProjectSerializer
+
+    def perform_create(self, serializer):
+        project = serializer.save()
+        DesignVersion.objects.get_or_create(
+            project=project,
+            version_number=1,
+            defaults={'notes': 'Initial'},
+        )
+        return project
 
     def get_queryset(self):
         queryset = super().get_queryset()

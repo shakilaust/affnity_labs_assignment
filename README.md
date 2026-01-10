@@ -19,7 +19,15 @@
    - `npm run dev`
 3. Visit:
    - `http://localhost:5173`
+4. Sign up / log in:
+   - `http://localhost:5173/signup`
+   - `http://localhost:5173/login`
+5. App shell:
+   - `http://localhost:5173/app`
+6. Demo setup:
+   - `http://localhost:5173/app/demo`
 
 ### Notes
 - CORS is enabled for `http://localhost:5173`.
 - Copy `.env.example` to `.env` (optional) to override Django settings.
+- If migrations fail due to a user model change, delete `backend/db.sqlite3` and rerun migrations.
