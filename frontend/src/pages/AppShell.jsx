@@ -337,7 +337,8 @@ export default function AppShell() {
       handleError(new Error('Select a project first'))
       return
     }
-    const textToSend = (overrideText ?? chatInput).trim()
+    const rawText = typeof overrideText === 'string' ? overrideText : chatInput
+    const textToSend = (typeof rawText === 'string' ? rawText : `${rawText || ''}`).trim()
     if (!textToSend) {
       return
     }
@@ -621,7 +622,7 @@ export default function AppShell() {
       chatInput={chatInput}
       setChatInput={setChatInput}
       chatEndRef={chatEndRef}
-      disabled={!selectedProjectId || isLoadingMessages}
+      disabled={!selectedProjectId}
       onRetry={retryAssistant}
       isLoading={isLoadingMessages}
       onSaveDesign={saveDesign}

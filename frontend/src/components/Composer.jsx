@@ -23,7 +23,14 @@ export default function Composer({
         rows={2}
         className="chat-textarea"
       />
-      <button onClick={onSend} type="button" disabled={disabled}>
+      <button
+        onClick={(event) => {
+          event.preventDefault()
+          onSend()
+        }}
+        type="button"
+        disabled={disabled}
+      >
         Send
       </button>
     </div>
