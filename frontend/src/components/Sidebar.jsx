@@ -30,15 +30,18 @@ export default function Sidebar({
           <button className="primary small" onClick={onNewProject} type="button">
             + New project
           </button>
+          <button className="ghost small" onClick={onRefresh} type="button">
+            Refresh
+          </button>
+          <button className="ghost small" onClick={onSelectProject.bind(null, '')} type="button">
+            Clear selection
+          </button>
         </div>
       </div>
 
       <div className="sidebar-section">
         <div className="section-heading">
           <h4>Projects</h4>
-          <button className="ghost icon" onClick={onRefresh} type="button" aria-label="Refresh">
-            ↻
-          </button>
         </div>
         <div className="project-list flat">
           {projects.map((project) => (

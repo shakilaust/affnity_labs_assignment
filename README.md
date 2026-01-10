@@ -32,6 +32,15 @@
 - Copy `.env.example` to `.env` (optional) to override Django settings.
 - If migrations fail due to a user model change, delete `backend/db.sqlite3` and rerun migrations.
 
+### Architecture & design
+- High-level design doc: `docs/design.md` (architecture, models, retrieval, learning, trade-offs).
+- WebSockets via Django Channels (in-memory layer for demo); switch to Redis in production.
+
+### QA checklist
+- Create account → login → create project → send chat → see assistant reply + option cards.
+- Select an option → feedback recorded and assistant acknowledges selection.
+- Save design button → assistant confirmation bubble shows save.
+- Switching projects shows spinner and correct chat history.
 ### Quick QA checklist
 - Click “Demo Setup” in the sidebar.
 - Open the Bedroom project and confirm 5 option cards with images are visible.

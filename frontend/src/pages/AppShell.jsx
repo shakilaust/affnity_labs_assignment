@@ -490,6 +490,14 @@ export default function AppShell() {
           content: 'Save this design.',
         }),
       })
+      await fetchJson(`${API_BASE}/projects/${selectedProjectId}/messages/`, {
+        method: 'POST',
+        headers: jsonHeaders,
+        body: JSON.stringify({
+          role: 'assistant',
+          content: 'Saved. I will treat this as the canonical version for this project.',
+        }),
+      })
       await loadMessages(selectedProjectId)
     } catch (err) {
       handleError(err)
