@@ -34,6 +34,8 @@ export default function AppShell() {
   const messagesLoadRef = useRef({ projectId: null, inFlight: false })
   const lastLoadedProjectRef = useRef(null)
   const initialProjectResolvedRef = useRef(false)
+  const pendingAssistantIdRef = useRef(null)
+  const wsFallbackTimerRef = useRef(null)
 
   const selectedProject = useMemo(
     () => projects.find((project) => `${project.id}` === `${selectedProjectId}`),
@@ -146,19 +148,30 @@ export default function AppShell() {
     }
     ws.onclose = () => {
       setSocket(null)
+      setIsSending(false)
+      if (wsFallbackTimerRef.current) {
+        clearTimeout(wsFallbackTimerRef.current)
+        wsFallbackTimerRef.current = null
+      }
     }
     ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data)
         if (data.type === 'assistant_message') {
           const metadata = data.metadata_json || {}
-          const assistantId = `ws-assistant-${data.message_id}`
+          const assistantId =
+            pendingAssistantIdRef.current || `ws-assistant-${data.message_id}`
           updateMessageById(assistantId, (message) => ({
             ...message,
             content: data.content,
             isPending: false,
             metadata_json: metadata,
           }))
+          if (wsFallbackTimerRef.current) {
+            clearTimeout(wsFallbackTimerRef.current)
+            wsFallbackTimerRef.current = null
+          }
+          pendingAssistantIdRef.current = null
           revealAssistantText(assistantId, data.content)
           setProjectPreviews((prev) => ({
             ...prev,
@@ -168,10 +181,19 @@ export default function AppShell() {
               created_at: data.created_at,
             },
           }))
+          setIsSending(false)
         }
       } catch (e) {
         console.warn('WS parse error', e)
+        setIsSending(false)
       }
+    }
+    ws.onerror = () => {
+      if (wsFallbackTimerRef.current) {
+        clearTimeout(wsFallbackTimerRef.current)
+        wsFallbackTimerRef.current = null
+      }
+      setIsSending(false)
     }
     return () => {
       ws.close()
@@ -315,11 +337,9 @@ export default function AppShell() {
       handleError(new Error('Select a project first'))
       return
     }
-    const textToSend = (overrideText ?? chatInput).trim()
+    const rawText = typeof overrideText === 'string' ? overrideText : chatInput
+    const textToSend = (typeof rawText === 'string' ? rawText : `${rawText || ''}`).trim()
     if (!textToSend) {
-      return
-    }
-    if (isSending) {
       return
     }
     const tempUserId = `temp-user-${Date.now()}`
@@ -338,8 +358,57 @@ export default function AppShell() {
       isPending: true,
       retryText: textToSend,
     })
+    pendingAssistantIdRef.current = tempAssistantId
     setChatInput('')
     setIsSending(true)
+    const fulfillWithRest = async () => {
+      try {
+        const payload = {
+          project_id: Number(selectedProjectId),
+          message: textToSend,
+        }
+        const data = await fetchJson(`${API_BASE}/agent/chat`, {
+          method: 'POST',
+          headers: jsonHeaders,
+          body: JSON.stringify(payload),
+        })
+        pendingAssistantIdRef.current = null
+        updateMessageById(tempAssistantId, (message) => ({
+          ...message,
+          content: data.assistant_message,
+          isPending: false,
+          metadata_json: {
+            design_options: data.design_options || [],
+            resolved_context: data.resolved_context || null,
+            version_id: data.created_version_id || null,
+          },
+        }))
+        revealAssistantText(tempAssistantId, data.assistant_message)
+        setProjectPreviews((prev) => ({
+          ...prev,
+          [selectedProjectId]: {
+            role: 'assistant',
+            content: data.assistant_message,
+            created_at: new Date().toISOString(),
+          },
+        }))
+      } catch (err) {
+        updateMessageById(tempAssistantId, (message) => ({
+          ...message,
+          content: 'Something went wrong. Please try again.',
+          isPending: false,
+          isError: true,
+        }))
+        handleError(err)
+      } finally {
+        if (wsFallbackTimerRef.current) {
+          clearTimeout(wsFallbackTimerRef.current)
+          wsFallbackTimerRef.current = null
+        }
+        setIsSending(false)
+      }
+    }
+
     if (socket && socket.readyState === WebSocket.OPEN) {
       socket.send(
         JSON.stringify({
@@ -352,49 +421,17 @@ export default function AppShell() {
         ...message,
         id: tempAssistantId, // keep until ws response replaces
       }))
+      if (wsFallbackTimerRef.current) {
+        clearTimeout(wsFallbackTimerRef.current)
+      }
+      wsFallbackTimerRef.current = setTimeout(() => {
+        if (pendingAssistantIdRef.current === tempAssistantId) {
+          fulfillWithRest()
+        }
+      }, 7000)
       return
     }
-    // fallback to REST
-    try {
-      const payload = {
-        project_id: Number(selectedProjectId),
-        message: textToSend,
-      }
-      const data = await fetchJson(`${API_BASE}/agent/chat`, {
-        method: 'POST',
-        headers: jsonHeaders,
-        body: JSON.stringify(payload),
-      })
-      updateMessageById(tempAssistantId, (message) => ({
-        ...message,
-        content: data.assistant_message,
-        isPending: false,
-        metadata_json: {
-          design_options: data.design_options || [],
-          resolved_context: data.resolved_context || null,
-          version_id: data.created_version_id || null,
-        },
-      }))
-      revealAssistantText(tempAssistantId, data.assistant_message)
-      setProjectPreviews((prev) => ({
-        ...prev,
-        [selectedProjectId]: {
-          role: 'assistant',
-          content: data.assistant_message,
-          created_at: new Date().toISOString(),
-        },
-      }))
-    } catch (err) {
-      updateMessageById(tempAssistantId, (message) => ({
-        ...message,
-        content: 'Something went wrong. Please try again.',
-        isPending: false,
-        isError: true,
-      }))
-      handleError(err)
-    } finally {
-      setIsSending(false)
-    }
+    await fulfillWithRest()
   }
 
   const selectDesignOption = async (optionIndex) => {
@@ -581,15 +618,15 @@ export default function AppShell() {
         starterPrompts={starterPrompts}
         onSelectOption={selectDesignOption}
         onSendMessage={sendMessage}
-        onPromptClick={handleStarterPrompt}
-        chatInput={chatInput}
-        setChatInput={setChatInput}
-        chatEndRef={chatEndRef}
-        disabled={!selectedProjectId || isSending || isLoadingMessages}
-        onRetry={retryAssistant}
-        isLoading={isLoadingMessages}
-        onSaveDesign={saveDesign}
-      />
+      onPromptClick={handleStarterPrompt}
+      chatInput={chatInput}
+      setChatInput={setChatInput}
+      chatEndRef={chatEndRef}
+      disabled={!selectedProjectId}
+      onRetry={retryAssistant}
+      isLoading={isLoadingMessages}
+      onSaveDesign={saveDesign}
+    />
 
       {showProjectModal && (
         <div className="modal-overlay" role="presentation">

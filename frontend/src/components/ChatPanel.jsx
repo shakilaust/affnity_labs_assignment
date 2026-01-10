@@ -31,20 +31,13 @@ export default function ChatPanel({
     <main className="chat-panel">
       <header className="chat-header">
         <div>
-          <h1>{selectedProject ? selectedProject.title : 'ChatGPT-style designer'}</h1>
+          <h1>{selectedProject ? selectedProject.title : 'Your Own Interior Design Agent'}</h1>
           <p className="muted">
             {selectedProject
               ? formatRoomType(selectedProject.room_type)
               : 'Select a project or create a new one to begin'}
           </p>
         </div>
-        {selectedProject && (
-          <div className="header-actions">
-            <button className="ghost small" type="button" onClick={onSaveDesign}>
-              Save design
-            </button>
-          </div>
-        )}
         <div className="health-pill">
           {health.status === 'loading' && <span>Checking...</span>}
           {health.status === 'error' && <span className="error">Error</span>}
