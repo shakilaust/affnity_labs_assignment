@@ -635,6 +635,20 @@ button.ghost {
   max-height: 160px;
 }
 
+.image-fallback {
+  display: none;
+  border-radius: 12px;
+  padding: 1rem;
+  text-align: center;
+  background: #f3f4f6;
+  color: #6c7075;
+  font-size: 0.85rem;
+}
+
+.image-fallback.show {
+  display: block;
+}
+
 .status-row {
   display: flex;
   gap: 0.5rem;

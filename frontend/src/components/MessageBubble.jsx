@@ -31,11 +31,16 @@ export default function MessageBubble({ message, onSelectOption }) {
                     alt={option.title}
                     loading="lazy"
                     onError={(event) => {
-                      event.currentTarget.dataset.error = 'true'
+                      event.currentTarget.style.display = 'none'
+                      const fallback = event.currentTarget.nextSibling
+                      if (fallback) {
+                        fallback.classList.add('show')
+                      }
                       console.warn('Image failed to load', option.image_url)
                     }}
                   />
                 )}
+                <div className="image-fallback">Image failed to load</div>
                 <h4>{option.title}</h4>
                 <p>{option.description}</p>
                 <p className="muted">{option.image_prompt}</p>

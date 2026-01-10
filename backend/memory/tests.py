@@ -1,10 +1,12 @@
 from django.contrib.auth import get_user_model
 from django.test import TestCase
+from rest_framework.authtoken.models import Token
+from rest_framework.test import APIClient
 
 from django.utils import timezone
 
 from .learning import process_feedback_event
-from .models import DesignVersion, FeedbackEvent, Preference, Project
+from .models import ChatMessage, DesignVersion, FeedbackEvent, Preference, Project
 from .retrieval import get_canonical_version, resolve_context
 
 
@@ -119,3 +121,33 @@ class CanonicalVersionTests(TestCase):
         )
         canonical = get_canonical_version(self.project.id)
         self.assertEqual(canonical.id, self.version_two.id)
+
+
+class AgentChatMetadataTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username='agent', password='pass1234')
+        self.project = Project.objects.create(
+            user=self.user,
+            room_type='bedroom',
+            title='Agent Bedroom',
+        )
+
+    def test_agent_chat_stores_design_options_metadata(self):
+        client = APIClient()
+        token, _ = Token.objects.get_or_create(user=self.user)
+        client.credentials(HTTP_AUTHORIZATION=f'Token {token.key}')
+        import os
+
+        os.environ['MOCK_LLM'] = 'true'
+        response = client.post(
+            '/api/agent/chat',
+            {'project_id': self.project.id, 'message': 'Design a modern bedroom'},
+            format='json',
+        )
+        self.assertEqual(response.status_code, 200)
+        message = ChatMessage.objects.filter(project=self.project, role='assistant').last()
+        self.assertIsNotNone(message)
+        metadata = message.metadata_json
+        self.assertIn('design_options', metadata)
+        self.assertGreater(len(metadata['design_options']), 0)
+        self.assertIn('image_url', metadata['design_options'][0])

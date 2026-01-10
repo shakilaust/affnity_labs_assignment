@@ -25,9 +25,14 @@
 5. App shell:
    - `http://localhost:5173/app`
 6. Demo setup:
-   - `http://localhost:5173/app/demo`
+   - Use the “Demo Setup” button in the sidebar
 
 ### Notes
 - CORS is enabled for `http://localhost:5173`.
 - Copy `.env.example` to `.env` (optional) to override Django settings.
 - If migrations fail due to a user model change, delete `backend/db.sqlite3` and rerun migrations.
+
+### Quick QA checklist
+- Click “Demo Setup” in the sidebar.
+- Open the Bedroom project and confirm 5 option cards with images are visible.
+- Refresh the page and confirm images still render under the assistant message.
