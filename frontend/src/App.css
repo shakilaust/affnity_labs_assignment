@@ -376,12 +376,18 @@ button.ghost {
 }
 
 .sidebar {
-  padding: 2rem 1.5rem;
+  padding: 1.5rem 1.25rem;
   border-right: 1px solid rgba(40, 40, 40, 0.08);
   background: #fefcf8;
   display: flex;
   flex-direction: column;
   gap: 1rem;
+}
+
+.sidebar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
 }
 
 .sidebar-header {
@@ -396,6 +402,20 @@ button.ghost {
   color: #fff;
   border-radius: 999px;
   padding: 0.7rem 1.2rem;
+}
+
+.small {
+  padding: 0.4rem 0.8rem;
+  font-size: 0.85rem;
+}
+
+.icon {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .project-list {
@@ -434,7 +454,7 @@ button.ghost {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 160px;
+  max-width: 150px;
 }
 
 .project-preview {
@@ -444,7 +464,7 @@ button.ghost {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 160px;
+  max-width: 150px;
 }
 
 .project-meta {
@@ -472,8 +492,8 @@ button.ghost {
 .chat-panel {
   display: grid;
   grid-template-rows: auto 1fr auto;
-  padding: 2rem 2.5rem;
-  gap: 1.5rem;
+  padding: 1.5rem 2rem;
+  gap: 1rem;
 }
 
 .chat-header {
@@ -498,16 +518,16 @@ button.ghost {
 .chat-history {
   background: #fff;
   border-radius: 24px;
-  padding: 1.5rem;
+  padding: 1rem;
   box-shadow: 0 20px 45px rgba(20, 22, 26, 0.08);
   overflow-y: auto;
 }
 
 .chat-bubble {
   border-radius: 16px;
-  padding: 0.9rem 1rem;
+  padding: 0.7rem 0.9rem;
   background: #f5efe7;
-  margin-bottom: 1rem;
+  margin-bottom: 0.75rem;
 }
 
 .chat-bubble.user {
@@ -544,7 +564,7 @@ button.ghost {
 
 .chat-input {
   display: flex;
-  gap: 1rem;
+  gap: 0.75rem;
   align-items: center;
 }
 

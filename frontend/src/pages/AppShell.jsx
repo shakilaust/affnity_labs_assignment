@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { API_BASE, clearAuthToken, fetchJson, jsonHeaders } from '../api'
 import '../App.css'
+import ChatPanel from '../components/ChatPanel'
+import Sidebar from '../components/Sidebar'
 
 const ROOM_OPTIONS = [
   { value: 'bedroom', label: 'Bedroom' },
@@ -255,13 +257,6 @@ export default function AppShell() {
     }
   }
 
-  const handleInputKeyDown = (event) => {
-    if (event.key === 'Enter' && !event.shiftKey) {
-      event.preventDefault()
-      sendMessage()
-    }
-  }
-
   const runDemoSeed = async () => {
     try {
       const data = await fetchJson(`${API_BASE}/demo/seed`, {
@@ -287,201 +282,32 @@ export default function AppShell() {
     sendMessage(prompt)
   }
 
-  const formatTimestamp = (value) => {
-    if (!value) {
-      return ''
-    }
-    const date = new Date(value)
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-  }
-
-  const renderContextSummary = (context) => {
-    if (!context) {
-      return null
-    }
-    const preferences = context.preferences || []
-    const reference = context.reference_project
-    const referenceSummary = context.reference_summary || {}
-    const recentImages = referenceSummary.recent_images || []
-    const recentEvents = referenceSummary.recent_events || []
-    const targetEvents = context.target_recent_events || []
-    return (
-      <div className="context-summary">
-        <div>
-          <strong>Preferences</strong>
-          <div className="context-tags">
-            {preferences.length
-              ? preferences.slice(0, 6).map((pref) => (
-                  <span key={`${pref.key}-${pref.value}`} className="tag">
-                    {pref.key}: {pref.value}
-                  </span>
-                ))
-              : 'None'}
-          </div>
-        </div>
-        <div>
-          <strong>Reference</strong>
-          <p className="muted">
-            {reference ? `${reference.title} (${reference.room_type})` : 'None'}
-          </p>
-        </div>
-        <div className="context-stats">
-          <span>Ref images: {recentImages.length}</span>
-          <span>Ref events: {recentEvents.length}</span>
-          <span>Target events: {targetEvents.length}</span>
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div className="app-shell">
-      <aside className="sidebar">
-        <div className="sidebar-header">
-          <div>
-            <p className="eyebrow">Design Memory</p>
-            <h2>Projects</h2>
-          </div>
-          <button className="ghost" onClick={handleLogout} type="button">
-            Logout
-          </button>
-        </div>
-        <button className="primary" onClick={() => setShowProjectModal(true)} type="button">
-          + New Project
-        </button>
-        <button className="ghost" onClick={loadProjects} type="button">
-          Refresh
-        </button>
-        <button className="ghost" onClick={runDemoSeed} type="button">
-          Demo Setup
-        </button>
-        <div className="project-list">
-          {projects.map((project) => (
-            <button
-              key={project.id}
-              className={`project-item ${selectedProjectId == project.id ? 'active' : ''}`}
-              type="button"
-              onClick={() => handleProjectSelect(`${project.id}`)}
-            >
-              <div className="project-row">
-                <div>
-                  <p className="project-title">{project.title}</p>
-                  <p className="project-preview">
-                    {projectPreviews[project.id]?.content || 'No messages yet'}
-                  </p>
-                </div>
-                <div className="project-meta">
-                  <span className="badge">{project.room_type}</span>
-                  <span className="timestamp">
-                    {formatTimestamp(projectPreviews[project.id]?.created_at)}
-                  </span>
-                </div>
-              </div>
-            </button>
-          ))}
-          {!projects.length && <p className="muted">No projects yet.</p>}
-        </div>
-      </aside>
+      <Sidebar
+        projects={projects}
+        activeProjectId={selectedProjectId}
+        previews={projectPreviews}
+        onNewProject={() => setShowProjectModal(true)}
+        onRefresh={loadProjects}
+        onDemoSeed={runDemoSeed}
+        onSelectProject={handleProjectSelect}
+        onLogout={handleLogout}
+      />
 
-      <main className="chat-panel">
-        <header className="chat-header">
-          <div>
-            <h1>{selectedProject ? selectedProject.title : 'Select a project'}</h1>
-            <p className="muted">
-              {selectedProject ? selectedProject.room_type : 'Choose from the sidebar'}
-            </p>
-          </div>
-          <div className="health-pill">
-            {health.status === 'loading' && <span>Checking...</span>}
-            {health.status === 'error' && <span className="error">Error</span>}
-            {health.status !== 'loading' && health.status !== 'error' && (
-              <span className="ok">API {health.status}</span>
-            )}
-          </div>
-        </header>
-
-        {actionError && <div className="toast">{actionError}</div>}
-
-        <div className="chat-history">
-          {!selectedProjectId && (
-            <div className="chat-empty">
-              <p className="muted">Pick a project or create a new one to start chatting.</p>
-            </div>
-          )}
-          {selectedProjectId && !messages.length && (
-            <div className="chat-empty">
-              <p className="muted">Tell me what vibe you want.</p>
-              <div className="starter-prompts">
-                {starterPrompts.map((prompt) => (
-                  <button
-                    key={prompt}
-                    type="button"
-                    className="ghost"
-                    onClick={() => handleStarterPrompt(prompt)}
-                  >
-                    {prompt}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-          {messages.map((message) => {
-            const metadata = message.metadata_json || {}
-            const options = metadata.design_options || []
-            const context = metadata.context
-            return (
-              <div key={message.id} className={`chat-bubble ${message.role}`}>
-                <p className="chat-meta">
-                  {message.role} · {new Date(message.created_at).toLocaleString()}
-                </p>
-                <p>{message.content}</p>
-                {message.role === 'assistant' && options.length > 0 && (
-                  <div className="options-panel">
-                    <h3>Design options</h3>
-                    <div className="options-grid">
-                      {options.map((option, index) => (
-                        <div key={index} className="option-card">
-                          <h4>{option.title}</h4>
-                          <p>{option.description}</p>
-                          <p className="muted">{option.image_prompt}</p>
-                          <button
-                            className="ghost"
-                            type="button"
-                            onClick={() => selectDesignOption(index + 1)}
-                          >
-                            Select option
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {message.role === 'assistant' && context && (
-                  <details className="context-panel">
-                    <summary>Context used</summary>
-                    {renderContextSummary(context)}
-                  </details>
-                )}
-              </div>
-            )
-          })}
-          <div ref={chatEndRef} />
-        </div>
-
-        <div className="chat-input">
-          <textarea
-            value={chatInput}
-            onChange={(event) => setChatInput(event.target.value)}
-            onKeyDown={handleInputKeyDown}
-            placeholder="Describe the next design change..."
-            rows={2}
-            className="chat-textarea"
-          />
-          <button onClick={sendMessage} type="button" disabled={!selectedProjectId}>
-            Send
-          </button>
-        </div>
-      </main>
+      <ChatPanel
+        health={health}
+        selectedProject={selectedProject}
+        messages={messages}
+        starterPrompts={starterPrompts}
+        onSelectOption={selectDesignOption}
+        onSendMessage={sendMessage}
+        onPromptClick={handleStarterPrompt}
+        chatInput={chatInput}
+        setChatInput={setChatInput}
+        chatEndRef={chatEndRef}
+        disabled={!selectedProjectId}
+      />
 
       {showProjectModal && (
         <div className="modal-overlay" role="presentation">
