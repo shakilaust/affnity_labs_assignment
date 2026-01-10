@@ -24,16 +24,27 @@ export default function ChatPanel({
   chatEndRef,
   disabled,
   onRetry,
+  isLoading,
+  onSaveDesign,
 }) {
   return (
     <main className="chat-panel">
       <header className="chat-header">
         <div>
-          <h1>{selectedProject ? selectedProject.title : 'Select a project'}</h1>
+          <h1>{selectedProject ? selectedProject.title : 'ChatGPT-style designer'}</h1>
           <p className="muted">
-            {selectedProject ? formatRoomType(selectedProject.room_type) : 'Choose from the sidebar'}
+            {selectedProject
+              ? formatRoomType(selectedProject.room_type)
+              : 'Select a project or create a new one to begin'}
           </p>
         </div>
+        {selectedProject && (
+          <div className="header-actions">
+            <button className="ghost small" type="button" onClick={onSaveDesign}>
+              Save design
+            </button>
+          </div>
+        )}
         <div className="health-pill">
           {health.status === 'loading' && <span>Checking...</span>}
           {health.status === 'error' && <span className="error">Error</span>}
@@ -46,10 +57,17 @@ export default function ChatPanel({
       <div className="chat-history">
         {!selectedProject && (
           <div className="chat-empty">
-            <p className="muted">Pick a project or create a new one to start chatting.</p>
+            <p className="muted large">Ready when you are.</p>
+            <p className="muted">Select a project or create one on the left.</p>
           </div>
         )}
-        {selectedProject && !messages.length && (
+        {selectedProject && isLoading && (
+          <div className="chat-empty">
+            <div className="spinner" aria-label="Loading messages" />
+            <p className="muted">Loading messages...</p>
+          </div>
+        )}
+        {selectedProject && !isLoading && !messages.length && (
           <div className="chat-empty">
             <p className="muted">Tell me what vibe you want.</p>
             <div className="starter-prompts">
@@ -66,9 +84,10 @@ export default function ChatPanel({
             </div>
           </div>
         )}
-        {messages.map((message) => (
-          <MessageBubble
-            key={message.id}
+        {!isLoading &&
+          messages.map((message) => (
+            <MessageBubble
+              key={message.id}
             message={message}
             onSelectOption={onSelectOption}
             onRetry={onRetry}

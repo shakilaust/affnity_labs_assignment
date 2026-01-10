@@ -3,7 +3,6 @@ import '../App.css'
 export default function MessageBubble({ message, onSelectOption, onRetry }) {
   const metadata = message.metadata_json || {}
   const options = metadata.design_options || []
-  const context = metadata.resolved_context || metadata.context
   const versionId = metadata.version_id
   const saved = metadata.saved
 
@@ -80,59 +79,6 @@ export default function MessageBubble({ message, onSelectOption, onRetry }) {
             </div>
           </div>
         )}
-        {message.role === 'assistant' && context && (
-          <details className="context-panel">
-            <summary>Context used</summary>
-            <ContextSummary context={context} />
-          </details>
-        )}
-      </div>
-    </div>
-  )
-}
-
-function ContextSummary({ context }) {
-  const preferences = context.preferences || []
-  const reference = context.reference_project
-  const referenceSummary = context.reference_summary || {}
-  const canonicalVersion = referenceSummary.latest_version
-  const recentImages = referenceSummary.recent_images || []
-  const recentEvents = referenceSummary.recent_events || []
-  const targetEvents = context.target_recent_events || []
-
-  return (
-    <div className="context-summary">
-      <div>
-        <strong>Preferences</strong>
-        <div className="context-tags">
-          {preferences.length
-            ? preferences.slice(0, 6).map((pref) => (
-                <span key={`${pref.key}-${pref.value}`} className="tag">
-                  {pref.key}: {pref.value}
-                </span>
-              ))
-            : 'None'}
-        </div>
-      </div>
-      {context.retrieval_reason && (
-        <div>
-          <strong>Reason</strong>
-          <p className="muted">{context.retrieval_reason}</p>
-        </div>
-      )}
-      <div>
-        <strong>Reference</strong>
-        <p className="muted">
-          {reference ? `${reference.title} (${reference.room_type})` : 'None'}
-        </p>
-        {canonicalVersion && (
-          <p className="muted">Canonical version: v{canonicalVersion.version_number}</p>
-        )}
-      </div>
-      <div className="context-stats">
-        <span>Ref images: {recentImages.length}</span>
-        <span>Ref events: {recentEvents.length}</span>
-        <span>Target events: {targetEvents.length}</span>
       </div>
     </div>
   )

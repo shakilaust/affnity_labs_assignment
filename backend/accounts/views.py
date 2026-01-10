@@ -1,7 +1,7 @@
 from django.contrib.auth import get_user_model
 from rest_framework import status
 from rest_framework.authtoken.models import Token
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, authentication_classes, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
@@ -12,6 +12,7 @@ User = get_user_model()
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@authentication_classes([])
 def signup(request):
     serializer = SignupSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
@@ -25,6 +26,7 @@ def signup(request):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@authentication_classes([])
 def login(request):
     email = request.data.get('email', '').strip()
     password = request.data.get('password', '')

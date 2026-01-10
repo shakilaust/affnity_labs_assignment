@@ -27,7 +27,9 @@ export default function AppShell() {
   const [actionError, setActionError] = useState('')
   const [showProjectModal, setShowProjectModal] = useState(false)
   const [projectPreviews, setProjectPreviews] = useState({})
+  const [isLoadingMessages, setIsLoadingMessages] = useState(false)
   const [isSending, setIsSending] = useState(false)
+  const [socket, setSocket] = useState(null)
   const chatEndRef = useRef(null)
 
   const selectedProject = useMemo(
@@ -80,6 +82,10 @@ export default function AppShell() {
       try {
         const data = await fetchJson(`${API_BASE}/auth/me`)
         setCurrentUser(data)
+        setSelectedProjectId('')
+        setMessages([])
+        setProjectPreviews({})
+        setChatInput('')
       } catch (err) {
         handleError(err)
       }
@@ -92,18 +98,26 @@ export default function AppShell() {
       loadProjects()
     }
   }, [currentUser])
+  useEffect(() => {
+    // clear persisted project when user logs out
+    if (!currentUser) {
+      window.localStorage.removeItem('active_project_id')
+    }
+  }, [currentUser])
 
   useEffect(() => {
     if (selectedProjectId) {
       loadMessages(selectedProjectId)
-      window.localStorage.setItem('active_project_id', selectedProjectId)
+      if (currentUser) {
+        window.localStorage.setItem(`active_project_id_${currentUser.id}`, selectedProjectId)
+      }
       setSearchParams((prev) => {
         const next = new URLSearchParams(prev)
         next.set('p', selectedProjectId)
         return next
       })
     }
-  }, [selectedProjectId, setSearchParams])
+  }, [selectedProjectId, setSearchParams, currentUser])
 
   useEffect(() => {
     if (chatEndRef.current) {
@@ -112,13 +126,69 @@ export default function AppShell() {
   }, [messages])
 
   useEffect(() => {
+    if (!selectedProjectId || !currentUser) {
+      if (socket) {
+        socket.close()
+      }
+      return
+    }
+    const token = localStorage.getItem('auth_token')
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws'
+    const wsHost = window.location.host
+    const ws = new WebSocket(
+      `${wsProtocol}://${wsHost}/ws/chat/?project_id=${selectedProjectId}&token=${token}`
+    )
+    ws.onopen = () => {
+      setSocket(ws)
+    }
+    ws.onclose = () => {
+      setSocket(null)
+    }
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data)
+        if (data.type === 'assistant_message') {
+          const metadata = data.metadata_json || {}
+          const assistantId = `ws-assistant-${data.message_id}`
+          updateMessageById(assistantId, (message) => ({
+            ...message,
+            content: data.content,
+            isPending: false,
+            metadata_json: metadata,
+          }))
+          revealAssistantText(assistantId, data.content)
+          setProjectPreviews((prev) => ({
+            ...prev,
+            [selectedProjectId]: {
+              role: 'assistant',
+              content: data.content,
+              created_at: data.created_at,
+            },
+          }))
+        }
+      } catch (e) {
+        console.warn('WS parse error', e)
+      }
+    }
+    return () => {
+      ws.close()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedProjectId, currentUser])
+
+  useEffect(() => {
+    if (!currentUser) {
+      return
+    }
     const urlProjectId = searchParams.get('p')
-    const storedProjectId = window.localStorage.getItem('active_project_id')
+    const storedProjectId = window.localStorage.getItem(
+        `active_project_id_${currentUser.id}`
+      )
     const preferredId = urlProjectId || storedProjectId
     if (preferredId && preferredId !== selectedProjectId) {
       setSelectedProjectId(preferredId)
     }
-  }, [searchParams, selectedProjectId])
+  }, [searchParams, selectedProjectId, currentUser])
 
   const handleError = (err) => {
     setActionError(err.message || 'Something went wrong')
@@ -177,6 +247,7 @@ export default function AppShell() {
       return
     }
     try {
+      setIsLoadingMessages(true)
       setMessages([])
       const data = await fetchJson(`${API_BASE}/projects/${projectId}/messages/`)
       setMessages(data)
@@ -189,6 +260,8 @@ export default function AppShell() {
       }
     } catch (err) {
       handleError(err)
+    } finally {
+      setIsLoadingMessages(false)
     }
   }
 
@@ -247,6 +320,21 @@ export default function AppShell() {
     })
     setChatInput('')
     setIsSending(true)
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      socket.send(
+        JSON.stringify({
+          type: 'user_message',
+          message: textToSend,
+          project_id: Number(selectedProjectId),
+        })
+      )
+      updateMessageById(tempAssistantId, (message) => ({
+        ...message,
+        id: tempAssistantId, // keep until ws response replaces
+      }))
+      return
+    }
+    // fallback to REST
     try {
       const payload = {
         project_id: Number(selectedProjectId),
@@ -314,6 +402,14 @@ export default function AppShell() {
           content: `I choose option ${optionIndex}.`,
         }),
       })
+      await fetchJson(`${API_BASE}/projects/${selectedProjectId}/messages/`, {
+        method: 'POST',
+        headers: jsonHeaders,
+        body: JSON.stringify({
+          role: 'assistant',
+          content: `Noted. Option ${optionIndex} is selected. I'll use it as the base for further tweaks.`,
+        }),
+      })
       await loadMessages(selectedProjectId)
     } catch (err) {
       handleError(err)
@@ -365,34 +461,67 @@ export default function AppShell() {
     }
   }
 
+  const saveDesign = async () => {
+    if (!selectedProjectId || !currentUser?.id) {
+      handleError(new Error('Select a project first'))
+      return
+    }
+    const latestAssistantWithVersion = [...messages]
+      .reverse()
+      .find((m) => m.role === 'assistant' && m.metadata_json?.version_id)
+    const designVersionId = latestAssistantWithVersion?.metadata_json?.version_id || null
+    try {
+      await fetchJson(`${API_BASE}/feedback/`, {
+        method: 'POST',
+        headers: jsonHeaders,
+        body: JSON.stringify({
+          user: Number(currentUser.id),
+          project: Number(selectedProjectId),
+          design_version: designVersionId,
+          event_type: 'save',
+          payload_json: { note: 'saved via chat UI' },
+        }),
+      })
+      await fetchJson(`${API_BASE}/projects/${selectedProjectId}/messages/`, {
+        method: 'POST',
+        headers: jsonHeaders,
+        body: JSON.stringify({
+          role: 'user',
+          content: 'Save this design.',
+        }),
+      })
+      await fetchJson(`${API_BASE}/projects/${selectedProjectId}/messages/`, {
+        method: 'POST',
+        headers: jsonHeaders,
+        body: JSON.stringify({
+          role: 'assistant',
+          content: 'Saved. I will treat this as the canonical version for this project.',
+        }),
+      })
+      await loadMessages(selectedProjectId)
+    } catch (err) {
+      handleError(err)
+    }
+  }
+
   const handleLogout = async () => {
     try {
       await fetchJson(`${API_BASE}/auth/logout`, { method: 'POST', headers: jsonHeaders })
     } catch (err) {
       handleError(err)
     } finally {
+      if (currentUser?.id) {
+        window.localStorage.removeItem(`active_project_id_${currentUser.id}`)
+      }
       clearAuthToken()
       navigate('/')
     }
   }
 
-  const runDemoSeed = async () => {
-    try {
-      const data = await fetchJson(`${API_BASE}/demo/seed`, {
-        method: 'POST',
-        headers: jsonHeaders,
-      })
-      const bedroom = data.projects?.find((project) => project.room_type === 'bedroom')
-      await loadProjects()
-      if (bedroom) {
-        setSelectedProjectId(`${bedroom.id}`)
-      }
-    } catch (err) {
-      handleError(err)
-    }
-  }
-
   const handleProjectSelect = (projectId) => {
+    setChatInput('')
+    setIsLoadingMessages(true)
+    setMessages([])
     setSelectedProjectId(projectId)
   }
 
@@ -409,7 +538,6 @@ export default function AppShell() {
         previews={projectPreviews}
         onNewProject={() => setShowProjectModal(true)}
         onRefresh={loadProjects}
-        onDemoSeed={runDemoSeed}
         onSelectProject={handleProjectSelect}
         onLogout={handleLogout}
       />
@@ -425,8 +553,10 @@ export default function AppShell() {
         chatInput={chatInput}
         setChatInput={setChatInput}
         chatEndRef={chatEndRef}
-        disabled={!selectedProjectId || isSending}
+        disabled={!selectedProjectId || isSending || isLoadingMessages}
         onRetry={retryAssistant}
+        isLoading={isLoadingMessages}
+        onSaveDesign={saveDesign}
       />
 
       {showProjectModal && (

@@ -151,3 +151,27 @@ class AgentChatMetadataTests(TestCase):
         self.assertIn('design_options', metadata)
         self.assertGreater(len(metadata['design_options']), 0)
         self.assertIn('image_url', metadata['design_options'][0])
+
+
+class ContextResolvePreferenceTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create(username='prefs')
+        self.project = Project.objects.create(user=self.user, room_type='bedroom', title='Prefs')
+        self.version = DesignVersion.objects.create(project=self.project)
+        FeedbackEvent.objects.create(
+            user=self.user,
+            project=self.project,
+            design_version=self.version,
+            event_type='save',
+            payload_json={'note': 'canonical'},
+        )
+        Preference.objects.create(user=self.user, key='tone', value='warm', confidence=0.9, source='explicit')
+
+    def test_resolve_context_returns_canonical_and_prefs(self):
+        payload = resolve_context(
+            user_id=self.user.id,
+            message='design my living room like bedroom',
+            project_id=None,
+        )
+        self.assertIsNotNone(payload['reference_project'])
+        self.assertTrue(any(pref['key'] == 'tone' for pref in payload['preferences']))
