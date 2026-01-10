@@ -461,6 +461,22 @@ button.ghost {
   margin-bottom: 1rem;
 }
 
+.chat-bubble.user {
+  background: #2f2f2f;
+  color: #fff;
+  margin-left: auto;
+}
+
+.chat-bubble.assistant {
+  background: #f5efe7;
+  color: #2b2a24;
+}
+
+.chat-bubble.system {
+  background: #e8edf4;
+  color: #2b2a24;
+}
+
 .chat-meta {
   font-size: 0.75rem;
   text-transform: uppercase;
@@ -508,6 +524,48 @@ button.ghost {
   display: grid;
   gap: 1rem;
   box-shadow: 0 30px 70px rgba(20, 22, 26, 0.2);
+}
+
+.options-panel {
+  background: #fff;
+  border-radius: 20px;
+  padding: 1.5rem;
+  box-shadow: 0 16px 32px rgba(20, 22, 26, 0.08);
+}
+
+.options-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+}
+
+.option-card {
+  background: #fff7ed;
+  border-radius: 16px;
+  padding: 1rem;
+  border: 1px solid rgba(214, 180, 146, 0.4);
+  display: grid;
+  gap: 0.5rem;
+}
+
+.context-panel {
+  background: #111827;
+  color: #f9fafb;
+  border-radius: 16px;
+  padding: 1rem 1.25rem;
+}
+
+.context-panel summary {
+  cursor: pointer;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.context-panel pre {
+  margin: 0;
+  white-space: pre-wrap;
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8rem;
 }
 
 @media (max-width: 980px) {

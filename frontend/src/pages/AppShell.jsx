@@ -21,6 +21,8 @@ export default function AppShell() {
   const [selectedProjectId, setSelectedProjectId] = useState('')
   const [messages, setMessages] = useState([])
   const [chatInput, setChatInput] = useState('')
+  const [contextUsed, setContextUsed] = useState(null)
+  const [designOptions, setDesignOptions] = useState([])
   const [actionError, setActionError] = useState('')
   const [showProjectModal, setShowProjectModal] = useState(false)
 
@@ -58,6 +60,12 @@ export default function AppShell() {
     }
     loadMe()
   }, [])
+
+  useEffect(() => {
+    if (currentUser?.id) {
+      loadProjects()
+    }
+  }, [currentUser])
 
   const handleError = (err) => {
     setActionError(err.message || 'Something went wrong')
@@ -112,7 +120,7 @@ export default function AppShell() {
       return
     }
     try {
-      const data = await fetchJson(`${API_BASE}/feedback/?project_id=${projectId}`)
+      const data = await fetchJson(`${API_BASE}/projects/${projectId}/messages/`)
       setMessages(data)
     } catch (err) {
       handleError(err)
@@ -124,21 +132,45 @@ export default function AppShell() {
       handleError(new Error('Select a project first'))
       return
     }
+    if (!chatInput.trim()) {
+      return
+    }
     try {
       const payload = {
-        user: Number(currentUser.id),
-        project: Number(selectedProjectId),
-        design_version: null,
-        event_type: 'modify',
-        payload_json: { text: chatInput },
+        project_id: Number(selectedProjectId),
+        message: chatInput,
       }
-      await fetchJson(`${API_BASE}/feedback/`, {
+      const data = await fetchJson(`${API_BASE}/agent/chat`, {
         method: 'POST',
         headers: jsonHeaders,
         body: JSON.stringify(payload),
       })
       setChatInput('')
+      setContextUsed(data.resolved_context || null)
+      setDesignOptions(data.design_options || [])
       await loadMessages(selectedProjectId)
+    } catch (err) {
+      handleError(err)
+    }
+  }
+
+  const selectDesignOption = async (optionIndex) => {
+    if (!selectedProjectId || !currentUser?.id) {
+      handleError(new Error('Select a project first'))
+      return
+    }
+    try {
+      await fetchJson(`${API_BASE}/feedback/`, {
+        method: 'POST',
+        headers: jsonHeaders,
+        body: JSON.stringify({
+          user: Number(currentUser.id),
+          project: Number(selectedProjectId),
+          design_version: null,
+          event_type: 'select',
+          payload_json: { selected_option_index: optionIndex },
+        }),
+      })
     } catch (err) {
       handleError(err)
     }
@@ -210,23 +242,49 @@ export default function AppShell() {
 
         <div className="chat-history">
           {messages.length ? (
-            messages
-              .slice()
-              .reverse()
-              .map((message) => (
-                <div key={message.id} className="chat-bubble">
-                  <p className="chat-meta">
-                    {message.event_type} · {new Date(message.created_at).toLocaleString()}
-                  </p>
-                  <p>{message.payload_json?.text || JSON.stringify(message.payload_json)}</p>
-                </div>
-              ))
+            messages.map((message) => (
+              <div key={message.id} className={`chat-bubble ${message.role}`}>
+                <p className="chat-meta">
+                  {message.role} · {new Date(message.created_at).toLocaleString()}
+                </p>
+                <p>{message.content}</p>
+              </div>
+            ))
           ) : (
             <div className="chat-empty">
               <p className="muted">No messages yet. Start a conversation.</p>
             </div>
           )}
         </div>
+
+        {designOptions.length > 0 && (
+          <div className="options-panel">
+            <h3>Design options</h3>
+            <div className="options-grid">
+              {designOptions.map((option, index) => (
+                <div key={index} className="option-card">
+                  <h4>{option.title}</h4>
+                  <p>{option.description}</p>
+                  <p className="muted">{option.image_prompt}</p>
+                  <button
+                    className="ghost"
+                    type="button"
+                    onClick={() => selectDesignOption(index + 1)}
+                  >
+                    Select option
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {contextUsed && (
+          <details className="context-panel">
+            <summary>Context used</summary>
+            <pre>{JSON.stringify(contextUsed, null, 2)}</pre>
+          </details>
+        )}
 
         <div className="chat-input">
           <input

@@ -2,6 +2,7 @@ from django.contrib.auth import get_user_model
 from rest_framework import serializers
 
 from .models import (
+    ChatMessage,
     DesignVersion,
     FeedbackEvent,
     GeneratedImage,
@@ -85,3 +86,18 @@ class ProjectLinkSerializer(serializers.ModelSerializer):
         model = ProjectLink
         fields = ['id', 'from_project', 'to_project', 'link_type', 'reason', 'created_at']
         read_only_fields = ['id', 'created_at']
+
+
+class ChatMessageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ChatMessage
+        fields = [
+            'id',
+            'user',
+            'project',
+            'role',
+            'content',
+            'metadata_json',
+            'created_at',
+        ]
+        read_only_fields = ['id', 'user', 'project', 'created_at']
