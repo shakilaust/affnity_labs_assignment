@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { API_BASE, clearAuthToken, fetchJson, jsonHeaders } from '../api'
 import '../App.css'
 
@@ -14,6 +14,7 @@ const initialProjectForm = { title: '', room_type: 'bedroom' }
 
 export default function AppShell() {
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [health, setHealth] = useState({ status: 'loading', error: '' })
   const [currentUser, setCurrentUser] = useState(null)
   const [projectForm, setProjectForm] = useState(initialProjectForm)
@@ -23,12 +24,35 @@ export default function AppShell() {
   const [chatInput, setChatInput] = useState('')
   const [actionError, setActionError] = useState('')
   const [showProjectModal, setShowProjectModal] = useState(false)
+  const [projectPreviews, setProjectPreviews] = useState({})
   const chatEndRef = useRef(null)
 
   const selectedProject = useMemo(
     () => projects.find((project) => `${project.id}` === `${selectedProjectId}`),
     [projects, selectedProjectId]
   )
+
+  const starterPrompts = useMemo(() => {
+    if (!selectedProject) {
+      return []
+    }
+    const promptsByRoom = {
+      bedroom: [
+        'Design a calm modern bedroom with warm tones.',
+        'I want a cozy bedroom with soft lighting.',
+      ],
+      living_room: [
+        'Create a living room that matches my bedroom vibe.',
+        'I want a bright, modern living room with texture.',
+      ],
+      office: [
+        'Design a simple, focused home office.',
+        'Make the office minimal with warm wood accents.',
+      ],
+      other: ['Suggest a style direction for this space.'],
+    }
+    return promptsByRoom[selectedProject.room_type] || promptsByRoom.other
+  }, [selectedProject])
 
   useEffect(() => {
     let isMounted = true
@@ -65,6 +89,33 @@ export default function AppShell() {
       loadProjects()
     }
   }, [currentUser])
+
+  useEffect(() => {
+    if (selectedProjectId) {
+      loadMessages(selectedProjectId)
+      window.localStorage.setItem('active_project_id', selectedProjectId)
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev)
+        next.set('p', selectedProjectId)
+        return next
+      })
+    }
+  }, [selectedProjectId, setSearchParams])
+
+  useEffect(() => {
+    if (chatEndRef.current) {
+      chatEndRef.current.scrollIntoView({ behavior: 'smooth' })
+    }
+  }, [messages])
+
+  useEffect(() => {
+    const urlProjectId = searchParams.get('p')
+    const storedProjectId = window.localStorage.getItem('active_project_id')
+    const preferredId = urlProjectId || storedProjectId
+    if (preferredId && preferredId !== selectedProjectId) {
+      setSelectedProjectId(preferredId)
+    }
+  }, [searchParams, selectedProjectId])
 
   const handleError = (err) => {
     setActionError(err.message || 'Something went wrong')
@@ -108,42 +159,39 @@ export default function AppShell() {
     }
   }
 
-  useEffect(() => {
-    if (selectedProjectId) {
-      loadMessages(selectedProjectId)
-    }
-  }, [selectedProjectId])
-
-  useEffect(() => {
-    if (chatEndRef.current) {
-      chatEndRef.current.scrollIntoView({ behavior: 'smooth' })
-    }
-  }, [messages])
-
   const loadMessages = async (projectId) => {
     if (!projectId) {
       return
     }
     try {
+      setMessages([])
       const data = await fetchJson(`${API_BASE}/projects/${projectId}/messages/`)
       setMessages(data)
+      const lastMessage = data[data.length - 1]
+      if (lastMessage) {
+        setProjectPreviews((prev) => ({
+          ...prev,
+          [projectId]: lastMessage,
+        }))
+      }
     } catch (err) {
       handleError(err)
     }
   }
 
-  const sendMessage = async () => {
+  const sendMessage = async (overrideText) => {
     if (!selectedProjectId) {
       handleError(new Error('Select a project first'))
       return
     }
-    if (!chatInput.trim()) {
+    const textToSend = (overrideText ?? chatInput).trim()
+    if (!textToSend) {
       return
     }
     try {
       const payload = {
         project_id: Number(selectedProjectId),
-        message: chatInput,
+        message: textToSend,
       }
       const data = await fetchJson(`${API_BASE}/agent/chat`, {
         method: 'POST',
@@ -152,6 +200,14 @@ export default function AppShell() {
       })
       setChatInput('')
       await loadMessages(selectedProjectId)
+      setProjectPreviews((prev) => ({
+        ...prev,
+        [selectedProjectId]: {
+          role: 'assistant',
+          content: data.assistant_message,
+          created_at: new Date().toISOString(),
+        },
+      }))
     } catch (err) {
       handleError(err)
     }
@@ -174,6 +230,15 @@ export default function AppShell() {
           payload_json: { selected_option_index: optionIndex },
         }),
       })
+      await fetchJson(`${API_BASE}/projects/${selectedProjectId}/messages/`, {
+        method: 'POST',
+        headers: jsonHeaders,
+        body: JSON.stringify({
+          role: 'user',
+          content: `I choose option ${optionIndex}.`,
+        }),
+      })
+      await loadMessages(selectedProjectId)
     } catch (err) {
       handleError(err)
     }
@@ -190,6 +255,85 @@ export default function AppShell() {
     }
   }
 
+  const handleInputKeyDown = (event) => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault()
+      sendMessage()
+    }
+  }
+
+  const runDemoSeed = async () => {
+    try {
+      const data = await fetchJson(`${API_BASE}/demo/seed`, {
+        method: 'POST',
+        headers: jsonHeaders,
+      })
+      const bedroom = data.projects?.find((project) => project.room_type === 'bedroom')
+      await loadProjects()
+      if (bedroom) {
+        setSelectedProjectId(`${bedroom.id}`)
+      }
+    } catch (err) {
+      handleError(err)
+    }
+  }
+
+  const handleProjectSelect = (projectId) => {
+    setSelectedProjectId(projectId)
+  }
+
+  const handleStarterPrompt = (prompt) => {
+    setChatInput(prompt)
+    sendMessage(prompt)
+  }
+
+  const formatTimestamp = (value) => {
+    if (!value) {
+      return ''
+    }
+    const date = new Date(value)
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  }
+
+  const renderContextSummary = (context) => {
+    if (!context) {
+      return null
+    }
+    const preferences = context.preferences || []
+    const reference = context.reference_project
+    const referenceSummary = context.reference_summary || {}
+    const recentImages = referenceSummary.recent_images || []
+    const recentEvents = referenceSummary.recent_events || []
+    const targetEvents = context.target_recent_events || []
+    return (
+      <div className="context-summary">
+        <div>
+          <strong>Preferences</strong>
+          <div className="context-tags">
+            {preferences.length
+              ? preferences.slice(0, 6).map((pref) => (
+                  <span key={`${pref.key}-${pref.value}`} className="tag">
+                    {pref.key}: {pref.value}
+                  </span>
+                ))
+              : 'None'}
+          </div>
+        </div>
+        <div>
+          <strong>Reference</strong>
+          <p className="muted">
+            {reference ? `${reference.title} (${reference.room_type})` : 'None'}
+          </p>
+        </div>
+        <div className="context-stats">
+          <span>Ref images: {recentImages.length}</span>
+          <span>Ref events: {recentEvents.length}</span>
+          <span>Target events: {targetEvents.length}</span>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -203,7 +347,7 @@ export default function AppShell() {
           </button>
         </div>
         <button className="primary" onClick={() => setShowProjectModal(true)} type="button">
-          New Project
+          + New Project
         </button>
         <button className="ghost" onClick={loadProjects} type="button">
           Refresh
@@ -217,10 +361,22 @@ export default function AppShell() {
               key={project.id}
               className={`project-item ${selectedProjectId == project.id ? 'active' : ''}`}
               type="button"
-              onClick={() => setSelectedProjectId(`${project.id}`)}
+              onClick={() => handleProjectSelect(`${project.id}`)}
             >
-              <strong>{project.title}</strong>
-              <span>{project.room_type}</span>
+              <div className="project-row">
+                <div>
+                  <p className="project-title">{project.title}</p>
+                  <p className="project-preview">
+                    {projectPreviews[project.id]?.content || 'No messages yet'}
+                  </p>
+                </div>
+                <div className="project-meta">
+                  <span className="badge">{project.room_type}</span>
+                  <span className="timestamp">
+                    {formatTimestamp(projectPreviews[project.id]?.created_at)}
+                  </span>
+                </div>
+              </div>
             </button>
           ))}
           {!projects.length && <p className="muted">No projects yet.</p>}
@@ -255,6 +411,18 @@ export default function AppShell() {
           {selectedProjectId && !messages.length && (
             <div className="chat-empty">
               <p className="muted">Tell me what vibe you want.</p>
+              <div className="starter-prompts">
+                {starterPrompts.map((prompt) => (
+                  <button
+                    key={prompt}
+                    type="button"
+                    className="ghost"
+                    onClick={() => handleStarterPrompt(prompt)}
+                  >
+                    {prompt}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
           {messages.map((message) => {
@@ -291,7 +459,7 @@ export default function AppShell() {
                 {message.role === 'assistant' && context && (
                   <details className="context-panel">
                     <summary>Context used</summary>
-                    <pre>{JSON.stringify(context, null, 2)}</pre>
+                    {renderContextSummary(context)}
                   </details>
                 )}
               </div>
@@ -364,25 +532,3 @@ export default function AppShell() {
     </div>
   )
 }
-  const handleInputKeyDown = (event) => {
-    if (event.key === 'Enter' && !event.shiftKey) {
-      event.preventDefault()
-      sendMessage()
-    }
-  }
-
-  const runDemoSeed = async () => {
-    try {
-      const data = await fetchJson(`${API_BASE}/demo/seed`, {
-        method: 'POST',
-        headers: jsonHeaders,
-      })
-      const bedroom = data.projects?.find((project) => project.room_type === 'bedroom')
-      await loadProjects()
-      if (bedroom) {
-        setSelectedProjectId(`${bedroom.id}`)
-      }
-    } catch (err) {
-      handleError(err)
-    }
-  }
