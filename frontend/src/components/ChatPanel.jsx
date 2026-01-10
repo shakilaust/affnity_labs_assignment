@@ -24,6 +24,8 @@ export default function ChatPanel({
   chatEndRef,
   disabled,
   onRetry,
+  isLoading,
+  onSaveDesign,
 }) {
   return (
     <main className="chat-panel">
@@ -34,6 +36,13 @@ export default function ChatPanel({
             {selectedProject ? formatRoomType(selectedProject.room_type) : 'Choose from the sidebar'}
           </p>
         </div>
+        {selectedProject && (
+          <div className="header-actions">
+            <button className="ghost small" type="button" onClick={onSaveDesign}>
+              Save design
+            </button>
+          </div>
+        )}
         <div className="health-pill">
           {health.status === 'loading' && <span>Checking...</span>}
           {health.status === 'error' && <span className="error">Error</span>}
@@ -49,7 +58,13 @@ export default function ChatPanel({
             <p className="muted">Pick a project or create a new one to start chatting.</p>
           </div>
         )}
-        {selectedProject && !messages.length && (
+        {selectedProject && isLoading && (
+          <div className="chat-empty">
+            <div className="spinner" aria-label="Loading messages" />
+            <p className="muted">Loading messages...</p>
+          </div>
+        )}
+        {selectedProject && !isLoading && !messages.length && (
           <div className="chat-empty">
             <p className="muted">Tell me what vibe you want.</p>
             <div className="starter-prompts">
@@ -66,7 +81,8 @@ export default function ChatPanel({
             </div>
           </div>
         )}
-        {messages.map((message) => (
+        {!isLoading &&
+          messages.map((message) => (
           <MessageBubble
             key={message.id}
             message={message}

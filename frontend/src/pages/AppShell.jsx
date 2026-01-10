@@ -27,6 +27,7 @@ export default function AppShell() {
   const [actionError, setActionError] = useState('')
   const [showProjectModal, setShowProjectModal] = useState(false)
   const [projectPreviews, setProjectPreviews] = useState({})
+  const [isLoadingMessages, setIsLoadingMessages] = useState(false)
   const [isSending, setIsSending] = useState(false)
   const chatEndRef = useRef(null)
 
@@ -177,6 +178,7 @@ export default function AppShell() {
       return
     }
     try {
+      setIsLoadingMessages(true)
       setMessages([])
       const data = await fetchJson(`${API_BASE}/projects/${projectId}/messages/`)
       setMessages(data)
@@ -189,6 +191,8 @@ export default function AppShell() {
       }
     } catch (err) {
       handleError(err)
+    } finally {
+      setIsLoadingMessages(false)
     }
   }
 
@@ -365,6 +369,41 @@ export default function AppShell() {
     }
   }
 
+  const saveDesign = async () => {
+    if (!selectedProjectId || !currentUser?.id) {
+      handleError(new Error('Select a project first'))
+      return
+    }
+    const latestAssistantWithVersion = [...messages]
+      .reverse()
+      .find((m) => m.role === 'assistant' && m.metadata_json?.version_id)
+    const designVersionId = latestAssistantWithVersion?.metadata_json?.version_id || null
+    try {
+      await fetchJson(`${API_BASE}/feedback/`, {
+        method: 'POST',
+        headers: jsonHeaders,
+        body: JSON.stringify({
+          user: Number(currentUser.id),
+          project: Number(selectedProjectId),
+          design_version: designVersionId,
+          event_type: 'save',
+          payload_json: { note: 'saved via chat UI' },
+        }),
+      })
+      await fetchJson(`${API_BASE}/projects/${selectedProjectId}/messages/`, {
+        method: 'POST',
+        headers: jsonHeaders,
+        body: JSON.stringify({
+          role: 'user',
+          content: 'Save this design.',
+        }),
+      })
+      await loadMessages(selectedProjectId)
+    } catch (err) {
+      handleError(err)
+    }
+  }
+
   const handleLogout = async () => {
     try {
       await fetchJson(`${API_BASE}/auth/logout`, { method: 'POST', headers: jsonHeaders })
@@ -393,6 +432,9 @@ export default function AppShell() {
   }
 
   const handleProjectSelect = (projectId) => {
+    setChatInput('')
+    setIsLoadingMessages(true)
+    setMessages([])
     setSelectedProjectId(projectId)
   }
 
@@ -425,8 +467,10 @@ export default function AppShell() {
         chatInput={chatInput}
         setChatInput={setChatInput}
         chatEndRef={chatEndRef}
-        disabled={!selectedProjectId || isSending}
+        disabled={!selectedProjectId || isSending || isLoadingMessages}
         onRetry={retryAssistant}
+        isLoading={isLoadingMessages}
+        onSaveDesign={saveDesign}
       />
 
       {showProjectModal && (
